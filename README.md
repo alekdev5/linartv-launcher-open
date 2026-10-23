@@ -19,7 +19,7 @@
 
 ## English
 
-**LinarTV** is a clean, fast home screen for Android TV built around Polish football. It shows the clock, the weather for your city and the next matches of one or two clubs you follow — and keeps your favourite apps one click away. The interface is in Polish.
+**LinarTV** is a clean, fast home screen for Android TV built around Polish football. It shows the clock, the weather for your city and the next matches of one or two clubs you follow — and keeps your favourite apps one click away.
 
 ### Features
 - **Your clubs' fixtures** — pick one or two teams from any Polish league available on [kalendarzeligowe.pl](https://kalendarzeligowe.pl); fixtures update daily, with club crests.
