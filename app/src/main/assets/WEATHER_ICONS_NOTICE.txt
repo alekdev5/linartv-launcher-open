@@ -1,0 +1,6 @@
+Weather Icons by Erik Flowers (original icon designs by Lukas Bischoff).
+Source: https://github.com/erikflowers/weather-icons
+Font: weathericons-regular-webfont.ttf
+License: SIL Open Font License 1.1, https://openfontlicense.org/open-font-license-official-text/
+
+The bundled font is unmodified. The app selects glyphs and colors at runtime.

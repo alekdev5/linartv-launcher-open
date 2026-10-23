@@ -1,0 +1,131 @@
+package com.linart.tvpreview;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.text.Normalizer;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+
+/** Current leagues and teams from the same public catalogue used by kalendarzeligowe.pl. */
+final class LeagueCatalogClient {
+    private static final String ROOT = "https://kalendarzeligowe.pl/api/";
+    private static final String[] SLUGS = {"ekstraklasa", "1-liga", "2-liga",
+            "3-liga-grupa-1", "3-liga-grupa-2", "3-liga-grupa-3", "3-liga-grupa-4",
+            "4-liga-swietokrzyska", "klasa-okregowa-swietokrzyska", "reprezentacja"};
+    private static final String[] CATEGORIES = {"EKSTRAKLASA", "FIRST_LEAGUE", "SECOND_LEAGUE",
+            "THIRD_LEAGUE", "THIRD_LEAGUE", "THIRD_LEAGUE", "THIRD_LEAGUE",
+            "FOURTH_LEAGUE", "KLASA_OKREGOWA", "NATIONAL_TEAM"};
+    private static final String[] GROUPS = {"", "", "", "Grupa I", "Grupa II", "Grupa III",
+            "Grupa IV", "świętokrzyska", "świętokrzyska", ""};
+
+    static final class League {
+        final int id;
+        final String name, slug, season;
+        League(int id, String name, String slug, String season) {
+            this.id = id; this.name = name; this.slug = slug; this.season = season;
+        }
+    }
+
+    static final class Team {
+        final int id;
+        final String name;
+        Team(int id, String name) { this.id = id; this.name = name; }
+        String calendarUrl(League league) {
+            return "https://kalendarzeligowe.pl/" + league.slug + "/"
+                    + slug(name) + "-" + id + "/calendar.ics";
+        }
+    }
+
+    static List<League> leagues() throws Exception {
+        JSONArray seasons = readArray("seasons");
+        String season = "";
+        for (int i = 0; i < seasons.length(); i++) {
+            JSONObject item = seasons.getJSONObject(i);
+            if (item.optBoolean("isCurrent")) { season = item.getString("name"); break; }
+        }
+        if (season.isEmpty()) throw new IllegalStateException("Brak bieżącego sezonu");
+        JSONArray competitions = readArray("competitions?season=" + URLEncoder.encode(season, "UTF-8"));
+        List<League> result = new ArrayList<>();
+        for (int i = 0; i < SLUGS.length; i++) {
+            for (int j = 0; j < competitions.length(); j++) {
+                JSONObject item = competitions.getJSONObject(j);
+                String group = item.isNull("groupName") ? "" : item.optString("groupName", "");
+                if (CATEGORIES[i].equals(item.optString("category")) && GROUPS[i].equals(group)) {
+                    result.add(new League(item.getInt("id"), item.getString("name"), SLUGS[i], season));
+                    break;
+                }
+            }
+        }
+        return result;
+    }
+
+    static List<Team> teams(League league) throws Exception {
+        HashMap<Integer, Team> found = new HashMap<>();
+        JSONObject standings = null;
+        try { standings = readObject("competitions/" + league.id + "/standings"); }
+        catch (Exception ignored) { }
+        JSONArray rows = standings == null ? null : standings.optJSONArray("standings");
+        if (rows != null) for (int i = 0; i < rows.length(); i++)
+            add(found, rows.getJSONObject(i).optJSONObject("team"));
+        if (found.isEmpty()) {
+            for (int page = 1; page <= 10; page++) {
+                JSONObject matches = readObject("matches?competitionId=" + league.id
+                        + "&season=" + URLEncoder.encode(league.season, "UTF-8")
+                        + "&pageSize=200&page=" + page);
+                JSONArray data = matches.optJSONArray("data");
+                if (data == null || data.length() == 0) break;
+                for (int i = 0; i < data.length(); i++) {
+                    JSONObject match = data.getJSONObject(i);
+                    add(found, match.optJSONObject("home"));
+                    add(found, match.optJSONObject("away"));
+                }
+                JSONObject meta = matches.optJSONObject("meta");
+                if (meta == null || page >= meta.optInt("pageCount", page)) break;
+            }
+        }
+        List<Team> result = new ArrayList<>(found.values());
+        result.sort(Comparator.comparing(team -> team.name.toLowerCase(new Locale("pl", "PL"))));
+        return result;
+    }
+
+    private static void add(HashMap<Integer, Team> teams, JSONObject item) {
+        if (item == null || item.optInt("id") <= 0) return;
+        teams.put(item.optInt("id"), new Team(item.optInt("id"), item.optString("name")));
+    }
+
+    static String slug(String name) {
+        String polish = name.toLowerCase(Locale.ROOT).replace('ł', 'l');
+        String plain = Normalizer.normalize(polish, Normalizer.Form.NFD).replaceAll("\\p{M}+", "");
+        return plain.replaceAll("[^a-z0-9]+", "-").replaceAll("^-+|-+$", "");
+    }
+
+    private static JSONArray readArray(String path) throws Exception { return new JSONArray(read(path)); }
+    private static JSONObject readObject(String path) throws Exception { return new JSONObject(read(path)); }
+    private static String read(String path) throws Exception {
+        HttpURLConnection connection = (HttpURLConnection) new URL(ROOT + path).openConnection();
+        connection.setConnectTimeout(8000);
+        connection.setReadTimeout(8000);
+        try {
+            if (connection.getResponseCode() != 200)
+                throw new IllegalStateException("Katalog HTTP " + connection.getResponseCode());
+            try (InputStream stream = connection.getInputStream(); ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {
+                byte[] buffer = new byte[4096];
+                int count;
+                while ((count = stream.read(buffer)) != -1) {
+                    bytes.write(buffer, 0, count);
+                    if (bytes.size() > 2_000_000) throw new IllegalStateException("Katalog jest zbyt duży");
+                }
+                return bytes.toString("UTF-8");
+            }
+        } finally { connection.disconnect(); }
+    }
+}
