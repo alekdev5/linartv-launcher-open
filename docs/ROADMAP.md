@@ -22,9 +22,10 @@ Użytkownik sam decyduje, które aplikacje są widoczne na pierwszym ekranie i w
 ## 0.3.0 — mecze z całego świata (fixtur.es)
 Drugie źródło terminarzy obok kalendarzeligowe.pl: [fixtur.es](https://fixtur.es/) (De Agendamakers B.V.) — darmowe kalendarze ICS dla drużyn z lig na całym świecie. Otwiera LinarTV na rynki poza Polską.
 
-- [ ] **Zgoda:** zapytać De Agendamakers (info@agendamakers.nl) o użycie ich kalendarzy w aplikacji i o stabilny format adresów ICS; strona nie podaje warunków ani API.
-- [ ] **Wybór źródła** w kreatorze klubów: „Polska (kalendarzeligowe.pl)” lub „Świat (fixtur.es)”.
-- [ ] **Wyszukiwanie drużyny:** kraj → liga → drużyna albo wpisanie nazwy; ewentualnie wklejenie adresu kalendarza z fixtur.es, jeśli nie będzie katalogu.
+- [ ] **Etap 1 — wklejany link (bez katalogu):** w kreatorze klubów opcja „Dodaj kalendarz z fixtur.es”; użytkownik kopiuje na fixtur.es link do kalendarza swojej drużyny i wkleja go w LinarTV (lub skanuje kod QR i wkleja z telefonu). Aplikacja działa jak zwykły klient kalendarza.
+- [ ] **Kontakt:** e-mail do De Agendamakers (info@agendamakers.nl) — prośba o zgodę na katalog drużyn i o stabilny format adresów ICS.
+- [ ] **Etap 2 — katalog (tylko po zgodzie):** wybór kraj → liga → drużyna lub wyszukiwanie nazwy w kreatorze.
+- [ ] **Opisy wydarzeń:** pokazywać opis z kalendarza w szczegółach meczu (fixtur.es umieszcza tam swoje treści promocyjne — nie ukrywać ich).
 - [ ] **Parser ICS:** dopasować do formatu fixtur.es (nazwy drużyn w SUMMARY, rozgrywki, kolejka, wyniki na żywo, różne strefy czasowe).
 - [ ] **Herby:** dla zagranicznych klubów inicjały (fallback), bez dołączania nowych grafik bez zgody.
 - [ ] **Język:** domyślnie angielski interfejs, gdy system TV nie jest po polsku.
