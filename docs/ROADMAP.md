@@ -19,6 +19,17 @@ Użytkownik sam decyduje, które aplikacje są widoczne na pierwszym ekranie i w
 - [ ] Logo: dla aplikacji bez własnej grafiki pulpit pokazuje baner lub ikonę z systemu.
 - [ ] Opcja „Przywróć domyślny układ” w ustawieniach.
 
+## 0.3.0 — mecze z całego świata (fixtur.es)
+Drugie źródło terminarzy obok kalendarzeligowe.pl: [fixtur.es](https://fixtur.es/) (De Agendamakers B.V.) — darmowe kalendarze ICS dla drużyn z lig na całym świecie. Otwiera LinarTV na rynki poza Polską.
+
+- [ ] **Zgoda:** zapytać De Agendamakers (info@agendamakers.nl) o użycie ich kalendarzy w aplikacji i o stabilny format adresów ICS; strona nie podaje warunków ani API.
+- [ ] **Wybór źródła** w kreatorze klubów: „Polska (kalendarzeligowe.pl)” lub „Świat (fixtur.es)”.
+- [ ] **Wyszukiwanie drużyny:** kraj → liga → drużyna albo wpisanie nazwy; ewentualnie wklejenie adresu kalendarza z fixtur.es, jeśli nie będzie katalogu.
+- [ ] **Parser ICS:** dopasować do formatu fixtur.es (nazwy drużyn w SUMMARY, rozgrywki, kolejka, wyniki na żywo, różne strefy czasowe).
+- [ ] **Herby:** dla zagranicznych klubów inicjały (fallback), bez dołączania nowych grafik bez zgody.
+- [ ] **Język:** domyślnie angielski interfejs, gdy system TV nie jest po polsku.
+- [ ] Atrybucja fixtur.es w szczegółach meczu i w README.
+
 ## Później
 - Podział `DashboardActivity` na mniejsze klasy.
 
