@@ -2,7 +2,6 @@ package com.linart.tvpreview;
 
 import android.app.Activity;
 import android.app.ActivityManager;
-import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -40,6 +39,10 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.TextPaint;
+import android.text.style.MetricAffectingSpan;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -76,6 +79,7 @@ public final class DashboardActivity extends Activity {
     private static final int SINGLE_WEATHER_Y = 145;
     private static final int SINGLE_MATCH_Y = 445;
     private static final Locale PL = new Locale("pl", "PL");
+    private static final Locale EN = Locale.ENGLISH;
     private static final int TILE_BG = 0x80152146;
     private static final int TILE_FOCUS_BG = 0xB0335D91;
     private static final int FOCUS_RING = 0xFF9FD5FF;
@@ -135,7 +139,6 @@ public final class DashboardActivity extends Activity {
     private long forecastUpdatedAt;
     private long forecastAttemptedAt;
     private boolean forecastLoading;
-    private ImgwIconRepository weatherIcons;
     private static final long WEATHER_REFRESH_MS = 30L * 60 * 1000;
     private String cityName;
     private double cityLatitude;
@@ -167,6 +170,11 @@ public final class DashboardActivity extends Activity {
     private static final long SCREENSAVER_IDLE_MS = 5 * 60_000L;
     private static final long SCREENSAVER_SLIDE_MS = 30_000L;
     private boolean popupOpen;
+    private int popupDepth;
+    private boolean english;
+    private boolean fahrenheit;
+    private Locale displayLocale() { return english ? EN : PL; }
+    private String tr(String polish, String englishText) { return english ? englishText : polish; }
     private boolean screensaverActive;
     private boolean suppressSaverKeyUp;
     private boolean suppressSaverTouch;
@@ -193,7 +201,7 @@ public final class DashboardActivity extends Activity {
         @Override public void run() {
             Date now = new Date();
             clock.setText(new SimpleDateFormat("HH:mm", PL).format(now));
-            String formatted = new SimpleDateFormat("EEEE, d MMMM", PL).format(now);
+            String formatted = new SimpleDateFormat("EEEE, d MMMM", displayLocale()).format(now);
             date.setText(Character.toUpperCase(formatted.charAt(0)) + formatted.substring(1));
             if (night != isNight()) { buildScreen(); return; }
             if (!popupOpen && (matchCardNeedsUpdate(clubOneCalendar, now.getTime())
@@ -230,6 +238,8 @@ public final class DashboardActivity extends Activity {
         DisplayMetrics metrics = getResources().getDisplayMetrics();
         scale = Math.min(metrics.widthPixels / (float) W, metrics.heightPixels / (float) H);
         SharedPreferences saved = getPreferences(MODE_PRIVATE);
+        english = "en".equals(saved.getString("language", "pl"));
+        fahrenheit = "f".equals(saved.getString("temperature_unit", "c"));
         clubOneCalendar = configuredCalendar(saved, 1);
         clubTwoCalendar = configuredCalendar(saved, 2);
         forecastUpdatedAt = saved.getLong("weather_updated", 0);
@@ -239,14 +249,14 @@ public final class DashboardActivity extends Activity {
             forecast = null;
             forecastUpdatedAt = 0;
         }
-        if (forecast != null && forecast.optJSONArray("hourly") == null) forecastUpdatedAt = 0;
+        if (forecast != null && (forecast.optJSONArray("hourly") == null
+                || forecast.optInt("icon_format") != 2)) forecastUpdatedAt = 0;
         cityName = saved.getString("city_name", "Kraków");
         cityLatitude = Double.longBitsToDouble(saved.getLong("city_lat", Double.doubleToLongBits(50.0614)));
         cityLongitude = Double.longBitsToDouble(saved.getLong("city_lon", Double.doubleToLongBits(19.9366)));
         if (forecast != null && (!cityName.equals(forecast.optString("city"))
                 || forecast.optJSONObject("current") == null)) forecastUpdatedAt = 0;
         crests = new CrestRepository(this, this::updateCrestViews);
-        weatherIcons = new ImgwIconRepository(this);
         restoreCalendar(clubOneCalendar, saved);
         restoreCalendar(clubTwoCalendar, saved);
         buildScreen();
@@ -320,8 +330,15 @@ public final class DashboardActivity extends Activity {
 
     private String currentWeatherTime() {
         JSONObject current = currentWeather();
-        if (current == null || current.optLong("time") <= 0) return "brak danych";
-        return new SimpleDateFormat("d.MM HH:mm", PL).format(new Date(current.optLong("time")));
+        if (current == null || current.optLong("time") <= 0) return tr("brak danych", "no data");
+        SimpleDateFormat format = new SimpleDateFormat(english ? "d MMM HH:mm" : "d.MM HH:mm", displayLocale());
+        format.setTimeZone(forecastZone());
+        return format.format(new Date(current.optLong("time")));
+    }
+
+    private TimeZone forecastZone() {
+        return TimeZone.getTimeZone(forecast == null ? TimeZone.getDefault().getID()
+                : forecast.optString("timezone", TimeZone.getDefault().getID()));
     }
 
     private String observed(String field, String unit) {
@@ -402,17 +419,6 @@ public final class DashboardActivity extends Activity {
             String firstDay = forecast.getJSONObject("daily").getJSONArray("time").getString(0);
             return firstDay.equals(new SimpleDateFormat("yyyy-MM-dd", PL).format(new Date()));
         } catch (Exception ignored) { return false; }
-    }
-
-    private String weatherKind(int code) {
-        if (code == 0) return "sun";
-        if (code <= 2) return "partly";
-        if (code == 3) return "cloud";
-        if (code == 45 || code == 48) return "fog";
-        if (code >= 51 && code <= 67 || code >= 80 && code <= 82) return "rain";
-        if (code >= 71 && code <= 77 || code == 85 || code == 86) return "snow";
-        if (code >= 95) return "thunder";
-        return "cloud";
     }
 
     private int px(float value) { return Math.round(value * scale); }
@@ -563,13 +569,13 @@ public final class DashboardActivity extends Activity {
         clock = text("", 144, Color.WHITE, false, 60, 26, 590, 161);
         date = text("", 37, Color.WHITE, false, 62, 189, 610, 55);
 
-        circleAction(R.drawable.ic_toolbar_television, "Oglądaj telewizję", 1238,
+        circleAction(R.drawable.ic_toolbar_television, tr("Oglądaj telewizję", "Watch TV"), 1238,
                 () -> launch("org.droidtv.playtv"));
-        circleAction(R.drawable.ic_toolbar_cleanup, "Zamknij aplikacje w tle", 1138,
+        circleAction(R.drawable.ic_toolbar_cleanup, tr("Zamknij aplikacje w tle", "Close background apps"), 1138,
                 this::closeBackgroundApps);
-        circleAction(R.drawable.ic_toolbar_sources, "Źródła", 1338, this::showSources);
-        circleAction(R.drawable.ic_toolbar_gallery, "Galeria tapet", 1438, this::showWallpaperGallery);
-        circleAction(R.drawable.ic_toolbar_settings, "Ustawienia", 1538,
+        circleAction(R.drawable.ic_toolbar_sources, tr("Źródła", "Inputs"), 1338, this::showSources);
+        circleAction(R.drawable.ic_toolbar_gallery, tr("Galeria tapet", "Wallpaper gallery"), 1438, this::showWallpaperGallery);
+        circleAction(R.drawable.ic_toolbar_settings, tr("Ustawienia", "Settings"), 1538,
                 this::showPublicSettings);
 
         boolean singleColumn = !clubTwoCalendar.configured();
@@ -600,27 +606,83 @@ public final class DashboardActivity extends Activity {
         int x = SINGLE_COLUMN_X, y = SINGLE_MATCH_Y, w = 500, h = 286;
         View glow = tileGlow(x, y, w, h, 34);
         colorCard(x, y, w, h);
-        text("Kalendarz meczów", 21, ink, false, x + 30, y + 25, 430, 38);
-        text("Wybierz swój klub", 34, ink, true, x + 30, y + 95, 440, 52);
-        text("Możesz dodać jeden lub dwa kluby z aktualnych lig.", 19,
+        text(tr("Kalendarz meczów", "Match calendar"), 21, ink, false, x + 30, y + 25, 430, 38);
+        text(tr("Wybierz swój klub", "Choose your club"), 34, ink, true, x + 30, y + 95, 440, 52);
+        text(tr("Możesz dodać jeden lub dwa kluby z aktualnych lig.",
+                "Add one or two clubs from available leagues."), 19,
                 ink, false, x + 30, y + 166, 430, 70);
         View action = new View(this);
         action.setFocusable(true);
         action.setClickable(true);
-        action.setContentDescription("Wybierz klub do kalendarza meczów");
+        action.setContentDescription(tr("Wybierz klub do kalendarza meczów", "Choose a club for the match calendar"));
         action.setOnFocusChangeListener((v, focused) -> showTileGlow(glow, focused));
         action.setOnClickListener(v -> showTeamSetup());
         place(action, x, y, w, h);
     }
 
     private void showPublicSettings() {
-        new AlertDialog.Builder(this).setTitle("Ustawienia LinarTV " + appVersion())
-                .setItems(new String[]{"Wybierz kluby", "Miasto pogody: " + cityName, "Ustawienia systemu TV"},
-                        (dialog, which) -> {
+        showChoiceDialog(tr("Ustawienia LinarTV ", "LinarTV settings ") + appVersion(),
+                new String[]{tr("Wybierz kluby", "Choose clubs"),
+                        tr("Miasto pogody: ", "Weather city: ") + cityName,
+                        tr("Język: ", "Language: ") + (english ? "English" : "Polski"),
+                        tr("Temperatura: ", "Temperature: ") + (fahrenheit ? "°F" : "°C"),
+                        tr("Ustawienia systemu TV", "TV system settings")}, which -> {
                     if (which == 0) showTeamSetup();
                     else if (which == 1) showCitySetup();
+                    else if (which == 2) showLanguageSetup();
+                    else if (which == 3) showTemperatureUnitSetup();
                     else openSettings(Settings.ACTION_SETTINGS);
-                }).show();
+                });
+    }
+
+    private void showTemperatureUnitSetup() {
+        showChoiceDialog(tr("Jednostka temperatury", "Temperature unit"),
+                new String[]{"°C", "°F"}, which -> {
+            boolean selectedFahrenheit = which == 1;
+            if (fahrenheit == selectedFahrenheit) return;
+            fahrenheit = selectedFahrenheit;
+            getPreferences(MODE_PRIVATE).edit().putString("temperature_unit", fahrenheit ? "f" : "c").apply();
+            buildScreen();
+        });
+    }
+
+    private int shownTemperature(double celsius) {
+        return (int) Math.round(fahrenheit ? celsius * 9.0 / 5.0 + 32.0 : celsius);
+    }
+
+    private CharSequence temperatureLabel(double celsius) {
+        return temperatureLabelParts(shownTemperature(celsius) + "°");
+    }
+
+    private CharSequence temperatureLabelParts(String value) {
+        String text = value.replace('°', (char) (fahrenheit ? 0xf045 : 0xf03c));
+        SpannableString label = new SpannableString(text);
+        for (int i = 0; i < text.length(); i++) {
+            if (text.charAt(i) == (char) (fahrenheit ? 0xf045 : 0xf03c))
+                label.setSpan(new TemperatureUnitSpan(), i, i + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        return label;
+    }
+
+    private final class TemperatureUnitSpan extends MetricAffectingSpan {
+        private void apply(TextPaint paint) {
+            if (weatherTypeface == null) weatherTypeface = Typeface.createFromAsset(getAssets(),
+                    "weathericons-regular-webfont.ttf");
+            paint.setTypeface(weatherTypeface);
+            paint.setTextSize(paint.getTextSize() * 0.68f);
+        }
+        @Override public void updateDrawState(TextPaint paint) { apply(paint); }
+        @Override public void updateMeasureState(TextPaint paint) { apply(paint); }
+    }
+
+    private void showLanguageSetup() {
+        showChoiceDialog(tr("Język", "Language"), new String[]{"Polski", "English"}, which -> {
+            boolean selectedEnglish = which == 1;
+            if (english == selectedEnglish) return;
+            english = selectedEnglish;
+            getPreferences(MODE_PRIVATE).edit().putString("language", english ? "en" : "pl").apply();
+            buildScreen();
+        });
     }
 
     private String appVersion() {
@@ -629,49 +691,178 @@ public final class DashboardActivity extends Activity {
     }
 
     private void showCitySetup() {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout content = popupContent();
+        popupTitle(content, tr("Miasto do prognozy pogody", "Weather forecast city"));
+        popupDescription(content, tr("Wpisz nazwę miasta i wybierz wynik.",
+                "Type a city name and choose a result."));
         EditText query = new EditText(this);
         query.setSingleLine(true);
-        query.setHint("Np. Gdańsk");
+        query.setTextColor(ink);
+        query.setHintTextColor(muted);
+        query.setHint(tr("Np. Gdańsk", "E.g. London"));
         query.setText(cityName);
         query.selectAll();
-        new AlertDialog.Builder(this).setTitle("Miasto do prognozy pogody")
-                .setView(query)
-                .setPositiveButton("Szukaj", (dialog, which) -> searchCity(query.getText().toString().trim()))
-                .setNegativeButton("Anuluj", null)
-                .show();
+        query.setPadding(px(20), 0, px(20), 0);
+        query.setBackground(shape(night ? 0xFF2B4268 : 0xFFE3E9F0,
+                night ? 0xFF7899C3 : 0xFFB7C4D5, 15));
+        content.addView(query, new LinearLayout.LayoutParams(-1, px(66)));
+        TextView status = popupDescription(content, "");
+        LinearLayout results = new LinearLayout(this);
+        results.setOrientation(LinearLayout.VERTICAL);
+        ScrollView resultScroll = new ScrollView(this);
+        resultScroll.addView(results);
+        LinearLayout.LayoutParams resultParams = new LinearLayout.LayoutParams(-1, px(300));
+        resultParams.topMargin = px(8);
+        content.addView(resultScroll, resultParams);
+        LinearLayout actions = new LinearLayout(this);
+        actions.setGravity(Gravity.END);
+        TextView close = setupButton(tr("Zamknij", "Close"));
+        close.setGravity(Gravity.CENTER);
+        close.setOnClickListener(v -> dialog.dismiss());
+        actions.addView(close, new LinearLayout.LayoutParams(px(150), px(58)));
+        TextView search = setupButton(tr("Szukaj", "Search"));
+        search.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams searchParams = new LinearLayout.LayoutParams(px(150), px(58));
+        searchParams.leftMargin = px(14);
+        actions.addView(search, searchParams);
+        content.addView(actions);
+        search.setOnClickListener(v -> searchCity(query.getText().toString().trim(), dialog, results, status));
+        query.setOnEditorActionListener((v, actionId, event) -> {
+            search.performClick();
+            return true;
+        });
+        dialog.setContentView(content);
+        dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        showDialogWithBlur(dialog);
+        dialog.getWindow().setLayout(px(780), -2);
+        query.requestFocus();
     }
 
-    private void searchCity(String name) {
+    private void searchCity(String name, Dialog dialog, LinearLayout results, TextView status) {
         if (name.length() < 2) {
-            Toast.makeText(this, "Wpisz co najmniej dwie litery nazwy miasta.", Toast.LENGTH_SHORT).show();
+            status.setText(tr("Wpisz co najmniej dwie litery nazwy miasta.",
+                    "Enter at least two letters of the city name."));
             return;
         }
-        Toast.makeText(this, "Szukanie miasta…", Toast.LENGTH_SHORT).show();
+        status.setText(tr("Szukanie miasta…", "Searching for city…"));
+        results.removeAllViews();
         new Thread(() -> {
             List<PublicForecastClient.Place> places;
-            try { places = PublicForecastClient.searchPlaces(name); }
+            try { places = PublicForecastClient.searchPlaces(name, english ? "en" : "pl"); }
             catch (Exception e) {
                 android.util.Log.w("LinarTV", "City search failed", e);
                 places = null;
             }
             final List<PublicForecastClient.Place> found = places;
             handler.post(() -> {
-                if (isFinishing() || isDestroyed()) return;
+                if (isFinishing() || isDestroyed() || !dialog.isShowing()) return;
                 if (found == null) {
-                    Toast.makeText(this, "Nie udało się wyszukać miasta. Sprawdź połączenie z internetem.",
-                            Toast.LENGTH_LONG).show();
+                    status.setText(tr("Nie udało się wyszukać miasta. Sprawdź połączenie z internetem.",
+                            "Could not search for a city. Check your internet connection."));
                     return;
                 }
                 if (found.isEmpty()) {
-                    Toast.makeText(this, "Nie znaleziono miasta: " + name, Toast.LENGTH_LONG).show();
+                    status.setText(tr("Nie znaleziono miasta: ", "City not found: ") + name);
                     return;
                 }
-                String[] labels = new String[found.size()];
-                for (int i = 0; i < labels.length; i++) labels[i] = found.get(i).label();
-                new AlertDialog.Builder(this).setTitle("Wybierz miasto").setItems(labels,
-                        (dialog, index) -> saveCity(found.get(index))).show();
+                status.setText(tr("Wybierz właściwe miasto:", "Choose the correct city:"));
+                for (PublicForecastClient.Place place : found) {
+                    TextView item = setupButton(place.label());
+                    LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, px(62));
+                    params.bottomMargin = px(8);
+                    results.addView(item, params);
+                    item.setOnClickListener(v -> { saveCity(place); dialog.dismiss(); });
+                }
+                if (results.getChildCount() > 0) results.getChildAt(0).requestFocus();
             });
         }, "city-search").start();
+    }
+
+    private LinearLayout popupContent() {
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(px(36), px(28), px(36), px(30));
+        content.setBackground(shape(night ? 0xFF142548 : 0xFFF5F2EA,
+                night ? 0xFF899BC6 : 0xFFB7C4D5, 26));
+        return content;
+    }
+
+    private void popupTitle(LinearLayout content, String value) {
+        TextView title = new TextView(this);
+        title.setText(value);
+        title.setTextColor(ink);
+        title.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(32));
+        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(title);
+    }
+
+    private TextView popupDescription(LinearLayout content, String value) {
+        TextView description = new TextView(this);
+        description.setText(value);
+        description.setTextColor(muted);
+        description.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(19));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
+        params.setMargins(0, px(8), 0, px(20));
+        content.addView(description, params);
+        return description;
+    }
+
+    private void showChoiceDialog(String title, String[] labels, java.util.function.IntConsumer onChoose) {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout content = popupContent();
+        popupTitle(content, title);
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout choices = new LinearLayout(this);
+        choices.setOrientation(LinearLayout.VERTICAL);
+        scroll.addView(choices);
+        LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(-1, px(Math.min(520,
+                Math.max(90, labels.length * 72))));
+        scrollParams.topMargin = px(22);
+        content.addView(scroll, scrollParams);
+        for (int i = 0; i < labels.length; i++) {
+            final int index = i;
+            TextView button = setupButton(labels[i]);
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, px(62));
+            params.bottomMargin = px(10);
+            choices.addView(button, params);
+            button.setOnClickListener(v -> {
+                dialog.dismiss();
+                onChoose.accept(index);
+            });
+        }
+        TextView close = setupButton(tr("Zamknij", "Close"));
+        close.setGravity(Gravity.CENTER);
+        close.setOnClickListener(v -> dialog.dismiss());
+        LinearLayout.LayoutParams closeParams = new LinearLayout.LayoutParams(px(150), px(54));
+        closeParams.gravity = Gravity.END;
+        content.addView(close, closeParams);
+        dialog.setContentView(content);
+        dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        showDialogWithBlur(dialog);
+        dialog.getWindow().setLayout(px(780), -2);
+        if (choices.getChildCount() > 0) choices.getChildAt(0).requestFocus();
+    }
+
+    private void showMessageDialog(String title, String message) {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout content = popupContent();
+        popupTitle(content, title);
+        popupDescription(content, message);
+        TextView close = setupButton(tr("Zamknij", "Close"));
+        close.setGravity(Gravity.CENTER);
+        close.setOnClickListener(v -> dialog.dismiss());
+        LinearLayout.LayoutParams closeParams = new LinearLayout.LayoutParams(px(150), px(54));
+        closeParams.gravity = Gravity.END;
+        content.addView(close, closeParams);
+        dialog.setContentView(content);
+        dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        showDialogWithBlur(dialog);
+        dialog.getWindow().setLayout(px(780), -2);
+        close.requestFocus();
     }
 
     private void saveCity(PublicForecastClient.Place place) {
@@ -720,23 +911,24 @@ public final class DashboardActivity extends Activity {
         content.setBackground(shape(night ? 0xFF142548 : 0xFFF5F2EA,
                 night ? 0xFF899BC6 : 0xFFB7C4D5, 26));
         TextView title = new TextView(this);
-        title.setText("Twoje kluby");
+        title.setText(tr("Twoje kluby", "Your clubs"));
         title.setTextColor(ink);
         title.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(32));
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         content.addView(title);
         TextView description = new TextView(this);
-        description.setText("Wybierz jeden lub dwa zespoły. Terminarze będą aktualizowane automatycznie.");
+        description.setText(tr("Wybierz jeden lub dwa zespoły. Terminarze będą aktualizowane automatycznie.",
+                "Choose one or two teams. Fixtures update automatically."));
         description.setTextColor(muted);
         description.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(19));
         LinearLayout.LayoutParams descriptionParams = new LinearLayout.LayoutParams(-1, -2);
         descriptionParams.setMargins(0, px(8), 0, px(24));
         content.addView(description, descriptionParams);
         TextView first = setupButton(draft[0].configured() ? "1. " + draft[0].club + " · " + draft[0].league
-                : "1. Wybierz klub");
+                : tr("1. Wybierz klub", "1. Choose a club"));
         content.addView(first, new LinearLayout.LayoutParams(-1, px(66)));
         TextView second = setupButton(draft[1].configured() ? "2. " + draft[1].club + " · " + draft[1].league
-                : "2. Dodaj drugi klub (opcjonalnie)");
+                : tr("2. Dodaj drugi klub (opcjonalnie)", "2. Add a second club (optional)"));
         LinearLayout.LayoutParams secondParams = new LinearLayout.LayoutParams(-1, px(66));
         secondParams.setMargins(0, px(14), 0, 0);
         content.addView(second, secondParams);
@@ -750,18 +942,19 @@ public final class DashboardActivity extends Activity {
         second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
         LinearLayout actions = new LinearLayout(this);
         actions.setGravity(Gravity.RIGHT);
-        TextView remove = setupButton("Usuń drugi klub");
+        TextView remove = setupButton(tr("Usuń drugi klub", "Remove second club"));
         remove.setOnClickListener(v -> {
             draft[1] = new CalendarFeed("club2", "", "", "", "");
-            second.setText("2. Dodaj drugi klub (opcjonalnie)");
+            second.setText(tr("2. Dodaj drugi klub (opcjonalnie)", "2. Add a second club (optional)"));
         });
         actions.addView(remove, new LinearLayout.LayoutParams(px(260), px(54)));
-        TextView save = setupButton("Zapisz");
+        TextView save = setupButton(tr("Zapisz", "Save"));
         LinearLayout.LayoutParams saveParams = new LinearLayout.LayoutParams(px(145), px(54));
         saveParams.leftMargin = px(14);
         actions.addView(save, saveParams);
         save.setOnClickListener(v -> {
-            if (!draft[0].configured()) { status.setText("Najpierw wybierz pierwszy klub."); return; }
+            if (!draft[0].configured()) { status.setText(tr("Najpierw wybierz pierwszy klub.",
+                    "Choose the first club before saving.")); return; }
             saveConfiguredClubs(draft);
             dialog.dismiss();
         });
@@ -775,7 +968,7 @@ public final class DashboardActivity extends Activity {
 
     private void chooseLeague(int slot, CalendarFeed[] draft, TextView button,
                               Dialog setup, TextView status) {
-        status.setText("Pobieranie listy lig…");
+        status.setText(tr("Pobieranie listy lig…", "Loading leagues…"));
         new Thread(() -> {
             try {
                 List<LeagueCatalogClient.League> leagues = LeagueCatalogClient.leagues();
@@ -784,43 +977,45 @@ public final class DashboardActivity extends Activity {
                     status.setText("");
                     String[] names = new String[leagues.size()];
                     for (int i = 0; i < names.length; i++) names[i] = leagues.get(i).name;
-                    new AlertDialog.Builder(this).setTitle("Wybierz ligę").setItems(names,
-                            (list, index) -> chooseClub(slot, leagues.get(index), draft, button, setup, status))
-                            .show();
+                    showChoiceDialog(tr("Wybierz ligę", "Choose a league"), names,
+                            index -> chooseClub(slot, leagues.get(index), draft, button, setup, status));
                 });
             } catch (Exception e) {
-                handler.post(() -> { if (setup.isShowing()) status.setText("Nie udało się pobrać lig. Spróbuj ponownie."); });
+                handler.post(() -> { if (setup.isShowing()) status.setText(tr("Nie udało się pobrać lig. Spróbuj ponownie.",
+                        "Could not load leagues. Try again.")); });
             }
         }, "league-catalog").start();
     }
 
     private void chooseClub(int slot, LeagueCatalogClient.League league, CalendarFeed[] draft,
                             TextView button, Dialog setup, TextView status) {
-        status.setText("Pobieranie drużyn…");
+        status.setText(tr("Pobieranie drużyn…", "Loading teams…"));
         new Thread(() -> {
             try {
                 List<LeagueCatalogClient.Team> teams = LeagueCatalogClient.teams(league);
                 handler.post(() -> {
                     if (!setup.isShowing()) return;
-                    if (teams.isEmpty()) { status.setText("Brak drużyn w tej lidze."); return; }
+                    if (teams.isEmpty()) { status.setText(tr("Brak drużyn w tej lidze.",
+                            "No teams in this league.")); return; }
                     status.setText("");
                     String[] names = new String[teams.size()];
                     for (int i = 0; i < names.length; i++) names[i] = teams.get(i).name;
-                    new AlertDialog.Builder(this).setTitle(league.name).setItems(names, (list, index) -> {
+                    showChoiceDialog(league.name, names, index -> {
                         LeagueCatalogClient.Team team = teams.get(index);
                         int other = 1 - slot;
                         if (draft[other].configured() && draft[other].url.equals(team.calendarUrl(league))) {
-                            status.setText("Ten klub jest już wybrany.");
+                            status.setText(tr("Ten klub jest już wybrany.", "This club is already selected."));
                             return;
                         }
                         draft[slot] = new CalendarFeed("club" + (slot + 1), team.calendarUrl(league),
                                 team.name, league.name, league.slug);
                         button.setText((slot + 1) + ". " + team.name + " · " + league.name);
                         button.requestFocusFromTouch();
-                    }).show();
+                    });
                 });
             } catch (Exception e) {
-                handler.post(() -> { if (setup.isShowing()) status.setText("Nie udało się pobrać drużyn. Spróbuj ponownie."); });
+                handler.post(() -> { if (setup.isShowing()) status.setText(tr("Nie udało się pobrać drużyn. Spróbuj ponownie.",
+                        "Could not load teams. Try again.")); });
             }
         }, "team-catalog").start();
     }
@@ -860,8 +1055,10 @@ public final class DashboardActivity extends Activity {
 
     private void refreshStamp(long updatedAt, int x, int y, int width) {
         String label = updatedAt > 0
-                ? "odświeżono dane:\n" + new SimpleDateFormat("dd.MM.yyyy HH:mm", PL).format(new Date(updatedAt))
-                : "oczekiwanie na dane";
+                ? tr("odświeżono dane:\n", "updated:\n")
+                    + new SimpleDateFormat(english ? "dd MMM yyyy HH:mm" : "dd.MM.yyyy HH:mm",
+                            displayLocale()).format(new Date(updatedAt))
+                : tr("oczekiwanie na dane", "waiting for data");
         TextView stamp = text(label, 13, muted, false, x, y, width, 43);
         stamp.setGravity(Gravity.RIGHT | Gravity.TOP);
         stamp.setSingleLine(false);
@@ -977,20 +1174,21 @@ public final class DashboardActivity extends Activity {
         colorCard(x, y, w, h);
         int color = ink;
         if (match == null) {
-            TextView placeTag = text("TERMINARZ", 18, color, true, x + 28, y + 24, 115, 32);
+            TextView placeTag = text(tr("TERMINARZ", "FIXTURES"), 18, color, true, x + 28, y + 24, 115, 32);
             placeTag.setGravity(Gravity.CENTER);
             placeTag.setBackground(shape(0x55FFFFFF, Color.TRANSPARENT, 9));
         } else {
             ImageView placeIcon = new ImageView(this);
             placeIcon.setImageResource(home ? R.drawable.ic_match_home : R.drawable.ic_match_away);
             placeIcon.setColorFilter(color);
-            placeIcon.setContentDescription(home ? "Mecz u siebie" : "Mecz na wyjeździe");
+            placeIcon.setContentDescription(home ? tr("Mecz u siebie", "Home match")
+                    : tr("Mecz na wyjeździe", "Away match"));
             placeIcon.setBackground(shape(0x55FFFFFF, Color.TRANSPARENT, 9));
             placeIcon.setPadding(px(7), px(4), px(7), px(4));
             place(placeIcon, x + 28, y + 22, 42, 36);
         }
         if (match != null && match.round > 0) {
-            TextView leagueLabel = text(league + " - Kolejka " + match.round, 18, color, false,
+            TextView leagueLabel = text(league + tr(" - Kolejka ", " - Round ") + match.round, 18, color, false,
                     x + 84, y + 22, 240, 35);
             leagueLabel.setAutoSizeTextTypeUniformWithConfiguration(
                     px(15), px(18), 1, TypedValue.COMPLEX_UNIT_PX);
@@ -999,13 +1197,15 @@ public final class DashboardActivity extends Activity {
                     match == null ? 169 : 240, 35);
         }
         refreshStamp(feed.updatedAt, x + 330, y + 19, 144);
-        String title = match == null ? "Brak nadchodzących meczów" : shortName(match.home) + " – " + shortName(match.away);
+        String title = match == null ? tr("Brak nadchodzących meczów", "No upcoming matches")
+                : shortName(match.home) + " – " + shortName(match.away);
         TextView teams = text(title, 29, color, true, x + 29, y + 68, 405, 80);
         teams.setSingleLine(false);
         teams.setMaxLines(2);
         teams.setGravity(Gravity.TOP);
         if (match == null) {
-            text(feed.loading ? "Pobieranie terminarza…" : "Terminarz chwilowo niedostępny", 20, color, false,
+            text(feed.loading ? tr("Pobieranie terminarza…", "Loading fixtures…")
+                    : tr("Terminarz chwilowo niedostępny", "Fixtures temporarily unavailable"), 20, color, false,
                     x + 29, y + 176, 445, 50);
             return;
         }
@@ -1016,7 +1216,7 @@ public final class DashboardActivity extends Activity {
         String time = match.hasTime ? new SimpleDateFormat("HH:mm", PL).format(new Date(match.startsAt)) : "—:—";
         text(time, 61, color, true, x + 290, y + 163, 190, 75).setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         if (live) {
-            TextView liveBadge = text("Teraz!", 20, 0xFFFFFFFF, true,
+            TextView liveBadge = text(tr("Teraz!", "Live!"), 20, 0xFFFFFFFF, true,
                     x + 367, y + 229, 110, 34);
             liveBadge.setGravity(Gravity.CENTER);
             liveBadge.setBackground(shape(0xFFD8283F, 0xFFFF9AA6, 15));
@@ -1032,8 +1232,8 @@ public final class DashboardActivity extends Activity {
             tile.setFocusableInTouchMode(true);
             tile.setClickable(true);
             tile.setOnFocusChangeListener((v, focused) -> showTileGlow(glow, focused));
-            tile.setContentDescription(feed.selected == 0 ? "Następny mecz " + club
-                    : "Wróć do najbliższego meczu " + club);
+            tile.setContentDescription(feed.selected == 0 ? tr("Następny mecz ", "Next match ") + club
+                    : tr("Wróć do najbliższego meczu ", "Return to nearest match ") + club);
             tile.setOnClickListener(v -> {
                 feed.selected = feed.selected == 0 ? 1 : 0;
                 replaceMatchCard(x, club, league, feed);
@@ -1050,14 +1250,16 @@ public final class DashboardActivity extends Activity {
     }
 
     private String matchDateLabel(IcsMatchParser.Match match) {
-        String day = new SimpleDateFormat("EEE d.MM", PL).format(new Date(match.startsAt)).replace(".", ".");
+        String day = new SimpleDateFormat("EEE d.MM", displayLocale()).format(new Date(match.startsAt));
         day = Character.toUpperCase(day.charAt(0)) + day.substring(1);
         Calendar now = Calendar.getInstance();
         Calendar then = Calendar.getInstance(); then.setTimeInMillis(match.startsAt);
         now.set(Calendar.HOUR_OF_DAY, 12); now.set(Calendar.MINUTE, 0); now.set(Calendar.SECOND, 0);
         then.set(Calendar.HOUR_OF_DAY, 12); then.set(Calendar.MINUTE, 0); then.set(Calendar.SECOND, 0);
         int days = (int) Math.round((then.getTimeInMillis() - now.getTimeInMillis()) / 86_400_000.0);
-        return day + (days < 0 ? " · dziś" : days == 0 ? " · dziś" : days == 1 ? " · jutro" : " · za " + days + " dni");
+        return day + (days <= 0 ? tr(" · dziś", " · today") : days == 1
+                ? tr(" · jutro", " · tomorrow") : tr(" · za ", " · in ") + days
+                + tr(" dni", " days"));
     }
 
     private void crestBadge(String club, String league, int x, int y) {
@@ -1112,16 +1314,7 @@ public final class DashboardActivity extends Activity {
     }
 
     private void placeForecastIcon(String code, int x, int y, int width, int height) {
-        String fallbackKind = code.contains("z80") || code.contains("z60") ? "rain"
-                : code.startsWith("n0") ? "sun" : code.startsWith("n1") || code.startsWith("n2") ? "partly" : "cloud";
-        View fallback = new WeatherIcon(fallbackKind);
-        place(fallback, x, y, width, height);
-        ImageView image = new ImageView(this);
-        image.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        image.setVisibility(View.INVISIBLE);
-        place(image, x, y, width, height);
-        if (forecast != null && "Open-Meteo".equals(forecast.optString("provider"))) return;
-        weatherIcons.bind(code, image, fallback);
+        place(new WeatherIcon(code), x, y, width, height);
     }
 
     private void renderWeatherCard(int x) {
@@ -1137,34 +1330,38 @@ public final class DashboardActivity extends Activity {
         weatherHeaderIcon.setBackground(shape(0x55FFFFFF, Color.TRANSPARENT, 9));
         weatherHeaderIcon.setPadding(px(7), px(4), px(7), px(4));
         place(weatherHeaderIcon, x + 28, y + 22, 42, 36);
-        text("Pogoda", 20, weatherInk, false, x + 84, y + 22, 155, 35);
+        text(tr("Pogoda", "Weather"), 20, weatherInk, false, x + 84, y + 22, 155, 35);
         refreshStamp(forecastUpdatedAt, x + 242, y + 19, 233);
         placeForecastIcon(currentIcon, x + 43, y + 67, 84, 72);
         JSONObject now = currentWeather();
-        String current = now == null || !now.has("temperature") ? "—" : Math.round(now.optDouble("temperature", 0)) + "°";
-        text(current, 81, weatherInk, true, x + 132, y + 59, 170, 88).setGravity(Gravity.CENTER);
+        TextView current = text("", 81, weatherInk, true, x + 132, y + 59, 170, 88);
+        current.setText(now == null || !now.has("temperature") ? "—"
+                : temperatureLabel(now.optDouble("temperature", 0)));
+        current.setGravity(Gravity.CENTER);
         TextView city = text(cityName, cityName.length() > 9 ? 22 : 32, weatherInk, true, x + 310, y + 85, 170, 52);
         city.setGravity(Gravity.CENTER);
         city.setSingleLine(true);
         city.setEllipsize(android.text.TextUtils.TruncateAt.END);
         List<JSONObject> hours = hourlySamples(6);
-        SimpleDateFormat hourFormat = new SimpleDateFormat("HH:mm", PL);
-        hourFormat.setTimeZone(TimeZone.getDefault());
+        SimpleDateFormat hourFormat = new SimpleDateFormat("HH:mm", displayLocale());
+        hourFormat.setTimeZone(forecastZone());
         for (int i = 0; i < hours.size(); i++) {
             JSONObject item = hours.get(i);
             int hourX = x + 16 + i * 79;
             text(hourFormat.format(new Date(item.optLong("time"))), 15, weatherInk, true,
                     hourX, y + 155, 75, 23).setGravity(Gravity.CENTER);
             placeForecastIcon(item.optString("icon", ""), hourX + 9, y + 178, 58, 49);
-            text(Math.round(item.optDouble("temperature")) + "°", 18, weatherInk, true,
-                    hourX, y + 226, 75, 27).setGravity(Gravity.CENTER);
+            TextView temperature = text("", 18, weatherInk, true, hourX, y + 226, 75, 27);
+            temperature.setText(temperatureLabel(item.optDouble("temperature")));
+            temperature.setGravity(Gravity.CENTER);
         }
-        if (hours.isEmpty()) text("Pobieranie prognozy godzinowej…", 18, weatherInk, false,
+        if (hours.isEmpty()) text(tr("Pobieranie prognozy godzinowej…", "Loading hourly forecast…"), 18, weatherInk, false,
                 x + 24, y + 189, 455, 34).setGravity(Gravity.CENTER);
         View openDetails = new View(this);
         openDetails.setFocusable(true);
         openDetails.setClickable(true);
-        openDetails.setContentDescription("Pogoda " + cityName + ". Otwórz szczegóły");
+        openDetails.setContentDescription(tr("Pogoda ", "Weather ") + cityName
+                + tr(". Otwórz szczegóły", ". Open details"));
         openDetails.setOnFocusChangeListener((view, focused) -> showTileGlow(glow, focused));
         openDetails.setOnClickListener(view -> showWeatherDetails());
         place(openDetails, x, y, w, h);
@@ -1198,17 +1395,19 @@ public final class DashboardActivity extends Activity {
         content.setPadding(px(36), px(24), px(36), px(28));
         content.setBackground(shape(night ? 0xFF142548 : 0xFFF5F2EA,
                 night ? 0xFF899BC6 : 0xFFB7C4D5, 26, 1));
-        detailLine(content, cityName + "  ·  szczegóły pogody", 31, true, detailText);
-        detailLine(content, "Aktualne warunki  ·  " + currentWeatherTime(), 18, false, detailMuted);
-        detailLine(content, "Prognoza na 7 dni · Open-Meteo", 24, true, detailText);
+        detailLine(content, cityName + tr("  ·  szczegóły pogody", "  ·  weather details"), 31, true, detailText);
+        detailLine(content, tr("Aktualne warunki  ·  ", "Current conditions  ·  ")
+                + currentWeatherTime(), 18, false, detailMuted);
+        detailLine(content, tr("Prognoza na 7 dni · Open-Meteo", "7-day forecast · Open-Meteo"), 24, true, detailText);
         addDailyForecast(content);
-        detailLine(content, "Warunki teraz", 24, true, detailText);
+        detailLine(content, tr("Warunki teraz", "Conditions now"), 24, true, detailText);
         addWeatherMetrics(content);
-        detailLine(content, "Słońce i Księżyc", 24, true, detailText);
+        detailLine(content, tr("Słońce i Księżyc", "Sun and Moon"), 24, true, detailText);
         addAstronomyCards(content);
-        detailLine(content, "Dane pogodowe: Open-Meteo.com (CC BY 4.0).", 14, false, detailMuted);
+        detailLine(content, tr("Dane pogodowe: Open-Meteo.com (CC BY 4.0).",
+                "Weather data: Open-Meteo.com (CC BY 4.0)."), 14, false, detailMuted);
         TextView close = new TextView(this);
-        close.setText("Zamknij");
+        close.setText(tr("Zamknij", "Close"));
         close.setTextColor(detailText);
         close.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(19));
         close.setGravity(Gravity.CENTER);
@@ -1238,12 +1437,13 @@ public final class DashboardActivity extends Activity {
     }
 
     private void showDialogWithBlur(Dialog dialog, Runnable afterDismiss) {
+        popupDepth++;
         popupOpen = true;
         handler.removeCallbacks(startScreensaver);
         final FrameLayout dashboard = root;
         if (dashboard == null || dashboard.getWidth() == 0 || dashboard.getHeight() == 0) {
             dialog.setOnDismissListener(d -> {
-                popupOpen = false;
+                popupOpen = --popupDepth > 0;
                 if (afterDismiss != null) afterDismiss.run();
                 resetScreensaverTimer();
             });
@@ -1267,7 +1467,7 @@ public final class DashboardActivity extends Activity {
             if (parent != null) parent.removeView(blur);
             blur.setImageDrawable(null);
             backdrop.recycle();
-            popupOpen = false;
+            popupOpen = --popupDepth > 0;
             if (afterDismiss != null) afterDismiss.run();
             resetScreensaverTimer();
         });
@@ -1307,7 +1507,8 @@ public final class DashboardActivity extends Activity {
     private void addDailyForecast(LinearLayout content) {
         JSONObject daily = forecast == null ? null : forecast.optJSONObject("daily");
         if (daily == null) {
-            detailLine(content, "Prognoza chwilowo niedostępna", 18, false, detailMuted);
+            detailLine(content, tr("Prognoza chwilowo niedostępna", "Forecast temporarily unavailable"),
+                    18, false, detailMuted);
             return;
         }
         JSONArray dates = daily.optJSONArray("time");
@@ -1321,7 +1522,7 @@ public final class DashboardActivity extends Activity {
         rowParams.bottomMargin = px(16);
         content.addView(row, rowParams);
         SimpleDateFormat iso = new SimpleDateFormat("yyyy-MM-dd", PL);
-        SimpleDateFormat labelFormat = new SimpleDateFormat("EEE d", PL);
+        SimpleDateFormat labelFormat = new SimpleDateFormat("EEE d", displayLocale());
         for (int i = 0; i < Math.min(7, dates.length()); i++) {
             LinearLayout card = new LinearLayout(this);
             card.setOrientation(LinearLayout.VERTICAL);
@@ -1343,7 +1544,8 @@ public final class DashboardActivity extends Activity {
             symbolParams.gravity = Gravity.CENTER_HORIZONTAL;
             card.addView(detailWeatherIcon(icons.optString(i, "")), symbolParams);
             TextView temperature = new TextView(this);
-            temperature.setText(Math.round(highs.optDouble(i)) + "° / " + Math.round(lows.optDouble(i)) + "°");
+            temperature.setText(temperatureLabelParts(shownTemperature(highs.optDouble(i)) + "° / "
+                    + shownTemperature(lows.optDouble(i)) + "°"));
             temperature.setTextColor(detailText);
             temperature.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(18));
             temperature.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
@@ -1353,22 +1555,12 @@ public final class DashboardActivity extends Activity {
     }
 
     private View detailWeatherIcon(String code) {
-        FrameLayout symbol = new FrameLayout(this);
-        String fallbackKind = code.contains("z80") || code.contains("z60") ? "rain"
-                : code.startsWith("n0") ? "sun" : code.startsWith("n1") || code.startsWith("n2") ? "partly" : "cloud";
-        View fallback = new WeatherIcon(fallbackKind);
-        symbol.addView(fallback, new FrameLayout.LayoutParams(-1, -1));
-        ImageView icon = new ImageView(this);
-        icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        icon.setVisibility(View.INVISIBLE);
-        symbol.addView(icon, new FrameLayout.LayoutParams(-1, -1));
-        if (forecast != null && "Open-Meteo".equals(forecast.optString("provider"))) return symbol;
-        weatherIcons.bind(code, icon, fallback);
-        return symbol;
+        return new WeatherIcon(code);
     }
 
     private void addWeatherMetrics(LinearLayout content) {
-        String[] labels = {"Wiatr", "Wilgotność", "Ciśnienie", "Opad"};
+        String[] labels = {tr("Wiatr", "Wind"), tr("Wilgotność", "Humidity"),
+                tr("Ciśnienie", "Pressure"), tr("Opad", "Precipitation")};
         String[] values = {observed("wind", " m/s"),
                 observed("humidity", "%"), observed("pressure", " hPa"),
                 observed("precipitation", " mm")};
@@ -1411,8 +1603,10 @@ public final class DashboardActivity extends Activity {
         String rise = sunrise == null ? "—" : clockFormat.format(sunrise);
         String set = sunset == null ? "—" : clockFormat.format(sunset);
         int phase = moonPhaseIndex();
-        String[] phases = {"Nów", "Sierp przybywający", "Pierwsza kwadra", "Księżyc garbaty przybywający",
-                "Pełnia", "Księżyc garbaty ubywający", "Ostatnia kwadra", "Sierp ubywający"};
+        String[] phases = {tr("Nów", "New moon"), tr("Sierp przybywający", "Waxing crescent"),
+                tr("Pierwsza kwadra", "First quarter"), tr("Księżyc garbaty przybywający", "Waxing gibbous"),
+                tr("Pełnia", "Full moon"), tr("Księżyc garbaty ubywający", "Waning gibbous"),
+                tr("Ostatnia kwadra", "Last quarter"), tr("Sierp ubywający", "Waning crescent")};
 
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -1420,14 +1614,15 @@ public final class DashboardActivity extends Activity {
         rowParams.bottomMargin = px(12);
         content.addView(row, rowParams);
 
-        LinearLayout sunCard = astronomyCard(row, "Pozycja Słońca");
+        LinearLayout sunCard = astronomyCard(row, tr("Pozycja Słońca", "Sun position"));
         SunTrack track = new SunTrack(sunrise, sunset);
         LinearLayout.LayoutParams trackParams = new LinearLayout.LayoutParams(px(190), px(78));
         trackParams.gravity = Gravity.CENTER_HORIZONTAL;
         sunCard.addView(track, trackParams);
-        astronomyLabel(sunCard, "Wschód  " + rise + "      Zachód  " + set);
+        astronomyLabel(sunCard, tr("Wschód  ", "Sunrise  ") + rise
+                + tr("      Zachód  ", "      Sunset  ") + set);
 
-        LinearLayout moonCard = astronomyCard(row, "Faza Księżyca");
+        LinearLayout moonCard = astronomyCard(row, tr("Faza Księżyca", "Moon phase"));
         MoonPhaseGraphic moon = new MoonPhaseGraphic(phase);
         LinearLayout.LayoutParams moonParams = new LinearLayout.LayoutParams(px(72), px(72));
         moonParams.gravity = Gravity.CENTER_HORIZONTAL;
@@ -1552,7 +1747,7 @@ public final class DashboardActivity extends Activity {
         root.addView(drawerBackdrop, new FrameLayout.LayoutParams(-1, -1));
         drawerBackdrop.setVisibility(View.GONE);
 
-        drawerTitle = text("Aplikacje", 31, night ? Color.WHITE : 0xFF15223E,
+        drawerTitle = text(tr("Aplikacje", "Apps"), 31, night ? Color.WHITE : 0xFF15223E,
                 true, 56, 378, 500, 52);
         drawerTitle.setVisibility(View.GONE);
 
@@ -1574,7 +1769,7 @@ public final class DashboardActivity extends Activity {
         View expandGlow = tileGlow(817, 887, 38, 38, 19);
         dockExpand = new ImageView(this);
         dockExpand.setImageResource(R.drawable.ic_dock_expand);
-        dockExpand.setContentDescription("Więcej aplikacji — strzałka w dół");
+        dockExpand.setContentDescription(tr("Więcej aplikacji — strzałka w dół", "More apps — press down"));
         dockExpand.setPadding(px(8), px(7), px(8), px(7));
         dockExpand.setBackground(shape(TILE_BG, 0x66869BBE, 19));
         dockExpand.setFocusable(true);
@@ -1790,7 +1985,7 @@ public final class DashboardActivity extends Activity {
         }
         if (firstExtraApp == null) {
             TextView empty = new TextView(this);
-            empty.setText("Nie znaleziono dodatkowych aplikacji");
+            empty.setText(tr("Nie znaleziono dodatkowych aplikacji", "No additional apps found"));
             empty.setTextColor(Color.WHITE);
             empty.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(19));
             empty.setGravity(Gravity.CENTER_VERTICAL);
@@ -2027,7 +2222,8 @@ public final class DashboardActivity extends Activity {
         Intent intent = getPackageManager().getLeanbackLaunchIntentForPackage(pkg);
         if (intent == null) intent = getPackageManager().getLaunchIntentForPackage(pkg);
         if (intent != null) startActivity(intent);
-        else Toast.makeText(this, "Nie znaleziono aplikacji: " + pkg, Toast.LENGTH_SHORT).show();
+        else Toast.makeText(this, tr("Nie znaleziono aplikacji: ", "App not found: ") + pkg,
+                Toast.LENGTH_SHORT).show();
     }
 
     private void closeBackgroundApps() {
@@ -2039,13 +2235,15 @@ public final class DashboardActivity extends Activity {
                 catch (SecurityException ignored) { }
             }
             handler.post(() -> Toast.makeText(this,
-                    "Poproszono system o zamknięcie aplikacji w tle", Toast.LENGTH_SHORT).show());
+                    tr("Poproszono system o zamknięcie aplikacji w tle",
+                            "Asked the system to close background apps"), Toast.LENGTH_SHORT).show());
         }, "background-cleanup").start();
     }
 
     private void openSettings(String action) {
         try { startActivity(new Intent(action)); }
-        catch (Exception e) { Toast.makeText(this, "Ustawienia niedostępne", Toast.LENGTH_SHORT).show(); }
+        catch (Exception e) { Toast.makeText(this, tr("Ustawienia niedostępne", "Settings unavailable"),
+                Toast.LENGTH_SHORT).show(); }
     }
 
     private void showSavedWallpaper(ImageView image) {
@@ -2165,7 +2363,7 @@ public final class DashboardActivity extends Activity {
                 .setDuration(SCREENSAVER_SLIDE_MS).start();
         Date now = new Date();
         screensaverClock.setText(new SimpleDateFormat("HH:mm", PL).format(now));
-        String formatted = new SimpleDateFormat("EEEE, d MMMM", PL).format(now);
+        String formatted = new SimpleDateFormat("EEEE, d MMMM", displayLocale()).format(now);
         screensaverDate.setText(formatted.toUpperCase(PL));
         FrameLayout.LayoutParams info = new FrameLayout.LayoutParams(-2, -2);
         int corner = screensaverIndex % 4;
@@ -2226,12 +2424,9 @@ public final class DashboardActivity extends Activity {
     private void showPhoneUpload() {
         String address = PhotoUploadServer.localIpv4();
         if (address == null) {
-            showDialogWithBlur(new AlertDialog.Builder(this,
-                    night ? android.R.style.Theme_Material_Dialog_Alert
-                            : android.R.style.Theme_Material_Light_Dialog_Alert)
-                    .setTitle("Dodawanie zdjęć")
-                    .setMessage("Telewizor nie ma adresu w sieci lokalnej. Połącz go i telefon z tą samą siecią Wi‑Fi.")
-                    .setPositiveButton("Zamknij", null).create());
+            showMessageDialog(tr("Dodawanie zdjęć", "Add photos"),
+                    tr("Telewizor nie ma adresu w sieci lokalnej. Połącz go i telefon z tą samą siecią Wi‑Fi.",
+                            "The TV has no local network address. Connect it and your phone to the same Wi-Fi network."));
             return;
         }
         if (photoUploadServer != null) photoUploadServer.close();
@@ -2239,17 +2434,15 @@ public final class DashboardActivity extends Activity {
         final boolean[] receivedPhoto = {false};
         PhotoUploadServer server;
         try {
-            server = new PhotoUploadServer(wallpaperFolder(), filename -> handler.post(() -> {
+            server = new PhotoUploadServer(wallpaperFolder(), english, filename -> handler.post(() -> {
                 receivedPhoto[0] = true;
-                status.setText("Zdjęcie dodane. Po zamknięciu zobaczysz je w galerii.");
+                status.setText(tr("Zdjęcie dodane. Po zamknięciu zobaczysz je w galerii.",
+                        "Photo added. It will appear in the gallery when you close this window."));
             }));
         } catch (Exception e) {
-            showDialogWithBlur(new AlertDialog.Builder(this,
-                    night ? android.R.style.Theme_Material_Dialog_Alert
-                            : android.R.style.Theme_Material_Light_Dialog_Alert)
-                    .setTitle("Dodawanie zdjęć")
-                    .setMessage("Nie udało się uruchomić przesyłania. Spróbuj ponownie za chwilę.")
-                    .setPositiveButton("Zamknij", null).create());
+            showMessageDialog(tr("Dodawanie zdjęć", "Add photos"),
+                    tr("Nie udało się uruchomić przesyłania. Spróbuj ponownie za chwilę.",
+                            "Could not start photo upload. Try again shortly."));
             return;
         }
         photoUploadServer = server;
@@ -2260,9 +2453,11 @@ public final class DashboardActivity extends Activity {
         content.setPadding(px(36), px(28), px(36), px(30));
         content.setBackground(shape(night ? 0xFF142548 : 0xFFF5F2EA,
                 night ? 0xFF899BC6 : 0xFFB7C4D5, 26, 1));
-        detailLine(content, "Dodaj zdjęcia z telefonu", 31, true, ink);
-        detailLine(content, "Telefon i telewizor muszą być w tej samej sieci.", 19, false, muted);
-        detailLine(content, "Zeskanuj kod aparatem telefonu:", 18, false, muted);
+        detailLine(content, tr("Dodaj zdjęcia z telefonu", "Add photos from phone"), 31, true, ink);
+        detailLine(content, tr("Telefon i telewizor muszą być w tej samej sieci.",
+                "Phone and TV must be on the same network."), 19, false, muted);
+        detailLine(content, tr("Zeskanuj kod aparatem telefonu:",
+                "Scan the code with your phone camera:"), 18, false, muted);
         String uploadUrl = "http://" + address + ":" + PhotoUploadServer.PORT + "/";
         try {
             ImageView qr = new ImageView(this);
@@ -2274,9 +2469,11 @@ public final class DashboardActivity extends Activity {
             qrParams.setMargins(0, px(12), 0, px(12));
             content.addView(qr, qrParams);
         } catch (WriterException e) {
-            detailLine(content, "Nie udało się przygotować kodu QR.", 17, false, muted);
+            detailLine(content, tr("Nie udało się przygotować kodu QR.",
+                    "Could not generate the QR code."), 17, false, muted);
         }
-        detailLine(content, "Na telefonie wpisz kod widoczny poniżej. Jeśli skanowanie nie zadziała, wpisz adres:", 16, false, muted);
+        detailLine(content, tr("Na telefonie wpisz kod widoczny poniżej. Jeśli skanowanie nie zadziała, wpisz adres:",
+                "Enter the code below on your phone. If scanning fails, enter this address:"), 16, false, muted);
         TextView url = new TextView(this);
         url.setText("http://" + address + ":" + PhotoUploadServer.PORT);
         url.setTextColor(ink);
@@ -2284,19 +2481,20 @@ public final class DashboardActivity extends Activity {
         url.setPadding(0, px(5), 0, px(5));
         content.addView(url);
         TextView pin = new TextView(this);
-        pin.setText("Kod: " + server.pin());
+        pin.setText(tr("Kod: ", "Code: ") + server.pin());
         pin.setTextColor(ink);
         pin.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(24));
         pin.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         pin.setPadding(0, 0, 0, px(12));
         content.addView(pin);
-        status.setText("Wybierz zdjęcia na telefonie i naciśnij „Dodaj zdjęcia”.");
+        status.setText(tr("Wybierz zdjęcia na telefonie i naciśnij „Dodaj zdjęcia”.",
+                "Select photos on your phone and tap Add photos."));
         status.setTextColor(muted);
         status.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(17));
         status.setMinHeight(px(65));
         content.addView(status);
         TextView close = new TextView(this);
-        close.setText("Zamknij");
+        close.setText(tr("Zamknij", "Close"));
         close.setTextColor(ink);
         close.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(19));
         close.setGravity(Gravity.CENTER);
@@ -2343,8 +2541,9 @@ public final class DashboardActivity extends Activity {
         content.setPadding(px(34), px(26), px(34), px(29));
         content.setBackground(shape(night ? 0xFF142548 : 0xFFF5F2EA,
                 night ? 0xFF899BC6 : 0xFFB7C4D5, 26));
-        detailLine(content, "Tapety", 31, true, ink);
-        detailLine(content, "Wybierz zdjęcie, aby ustawić je jako tło pulpitu.", 18, false, muted);
+        detailLine(content, tr("Tapety", "Wallpapers"), 31, true, ink);
+        detailLine(content, tr("Wybierz zdjęcie, aby ustawić je jako tło pulpitu.",
+                "Choose a photo to set it as your background."), 18, false, muted);
         android.widget.HorizontalScrollView gallery = new android.widget.HorizontalScrollView(this);
         gallery.setHorizontalScrollBarEnabled(false);
         gallery.setClipChildren(false);
@@ -2365,7 +2564,7 @@ public final class DashboardActivity extends Activity {
         deleteWrap.addView(deleteGlow, new FrameLayout.LayoutParams(px(251), px(92)));
         TextView delete = new TextView(this);
         delete.setId(View.generateViewId());
-        delete.setText("Usuń zdjęcie");
+        delete.setText(tr("Usuń zdjęcie", "Delete photo"));
         delete.setGravity(Gravity.CENTER);
         delete.setTextColor(ink);
         delete.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(19));
@@ -2415,7 +2614,7 @@ public final class DashboardActivity extends Activity {
         phone.setImageResource(R.drawable.ic_phone_add);
         add.addView(phone, new LinearLayout.LayoutParams(px(29), px(29)));
         TextView addLabel = new TextView(this);
-        addLabel.setText("Dodaj z telefonu");
+        addLabel.setText(tr("Dodaj z telefonu", "Add from phone"));
         addLabel.setTextColor(Color.WHITE);
         addLabel.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(19));
         addLabel.setPadding(px(10), 0, 0, 0);
@@ -2454,7 +2653,7 @@ public final class DashboardActivity extends Activity {
         closeGlow.setAlpha(0f);
         closeWrap.addView(closeGlow, new FrameLayout.LayoutParams(px(203), px(92)));
         TextView close = new TextView(this);
-        close.setText("Zamknij");
+        close.setText(tr("Zamknij", "Close"));
         close.setGravity(Gravity.CENTER);
         close.setTextColor(ink);
         close.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(19));
@@ -2554,14 +2753,15 @@ public final class DashboardActivity extends Activity {
         content.setPadding(px(34), px(24), px(34), px(24));
         content.setBackground(shape(night ? 0xFF142548 : 0xFFF5F2EA,
                 night ? 0xFF899BC6 : 0xFFB7C4D5, 26, 1));
-        detailLine(content, "Usunąć zdjęcie?", 29, true, ink);
-        detailLine(content, "Zdjęcie zniknie z galerii i wygaszacza.", 19, false, muted);
+        detailLine(content, tr("Usunąć zdjęcie?", "Delete this photo?"), 29, true, ink);
+        detailLine(content, tr("Zdjęcie zniknie z galerii i wygaszacza.",
+                "The photo will be removed from the gallery and screensaver."), 19, false, muted);
         LinearLayout actions = new LinearLayout(this);
         actions.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
         actions.setClipChildren(false);
         actions.setClipToPadding(false);
-        TextView cancel = wallpaperConfirmationAction(actions, "Anuluj", ink, confirmation::dismiss);
-        wallpaperConfirmationAction(actions, "Usuń", night ? 0xFFFFB8BE : 0xFFA12636, () -> {
+        TextView cancel = wallpaperConfirmationAction(actions, tr("Anuluj", "Cancel"), ink, confirmation::dismiss);
+        wallpaperConfirmationAction(actions, tr("Usuń", "Delete"), night ? 0xFFFFB8BE : 0xFFA12636, () -> {
             try {
                 File folder = wallpaperFolder().getCanonicalFile();
                 File target = file.getCanonicalFile();
@@ -2576,7 +2776,7 @@ public final class DashboardActivity extends Activity {
                 buildScreen();
                 handler.post(this::showWallpaperGallery);
             } catch (IOException e) {
-                Toast.makeText(this, "Nie udało się usunąć zdjęcia", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, tr("Nie udało się usunąć zdjęcia", "Could not delete photo"), Toast.LENGTH_LONG).show();
             }
         });
         content.addView(actions);
@@ -2646,13 +2846,13 @@ public final class DashboardActivity extends Activity {
         content.setBackground(shape(night ? 0xFC1A2B4B : 0xFFF2EEE7,
                 night ? 0x777F9BC5 : 0x8895A6C0, 27, 1));
         TextView title = new TextView(this);
-        title.setText("Źródła");
+        title.setText(tr("Źródła", "Inputs"));
         title.setTextColor(night ? Color.WHITE : 0xFF17284B);
         title.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(31));
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         content.addView(title);
         TextView hint = new TextView(this);
-        hint.setText("Wybierz telewizję lub wejście HDMI");
+        hint.setText(tr("Wybierz telewizję lub wejście HDMI", "Choose live TV or an HDMI input"));
         hint.setTextColor(night ? 0xFFBFCDE8 : 0xFF5B6B85);
         hint.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(17));
         LinearLayout.LayoutParams hintParams = new LinearLayout.LayoutParams(-1, -2);
@@ -2672,7 +2872,7 @@ public final class DashboardActivity extends Activity {
             }
             final int item = i;
             String label;
-            if (i == 0) label = "Telewizja";
+            if (i == 0) label = tr("Telewizja", "Live TV");
             else {
                 CharSequence inputLabel = inputs.get(i - 1).loadLabel(this);
                 label = inputLabel == null || inputLabel.length() == 0 ? "HDMI " + i : inputLabel.toString();
@@ -2685,7 +2885,8 @@ public final class DashboardActivity extends Activity {
                             TvContract.buildChannelUriForPassthroughInput(inputs.get(item - 1).getId()));
                     startActivity(view);
                 } catch (Exception e) {
-                    Toast.makeText(this, "Telewizor nie otworzył wejścia HDMI", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, tr("Telewizor nie otworzył wejścia HDMI",
+                            "The TV could not open the HDMI input"), Toast.LENGTH_SHORT).show();
                 }
             });
             LinearLayout.LayoutParams tileParams = new LinearLayout.LayoutParams(px(240), px(122));
@@ -2775,26 +2976,35 @@ public final class DashboardActivity extends Activity {
     }
 
     private final class WeatherIcon extends View {
-        private final String kind;
+        private final String condition;
         private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        WeatherIcon(String kind) { super(DashboardActivity.this); this.kind = kind; }
+        WeatherIcon(String condition) { super(DashboardActivity.this); this.condition = condition; }
         @Override protected void onDraw(Canvas c) {
             super.onDraw(c);
             if (weatherTypeface == null) weatherTypeface = Typeface.createFromAsset(getAssets(), "weathericons-regular-webfont.ttf");
+            boolean day = !condition.startsWith("n");
+            int code;
+            try { code = Integer.parseInt(condition.substring(1)); }
+            catch (Exception ignored) { code = 3; }
             int glyph;
-            switch (kind) {
-                case "sun": glyph = 0xf00d; break;
-                case "partly": glyph = 0xf002; break;
-                case "fog": glyph = 0xf014; break;
-                case "rain": glyph = 0xf019; break;
-                case "snow": glyph = 0xf01b; break;
-                case "thunder": glyph = 0xf01e; break;
-                default: glyph = 0xf013;
+            int tint;
+            if (code == 0) { glyph = day ? 0xf00d : 0xf02e; tint = 0xFFFFD65D; }
+            else if (code == 1) { glyph = day ? 0xf00c : 0xf081; tint = 0xFFFFD65D; }
+            else if (code == 2) { glyph = day ? 0xf002 : 0xf086; tint = 0xFFFFD65D; }
+            else if (code == 3) { glyph = 0xf013; tint = 0xFFE4F0FF; }
+            else if (code == 45 || code == 48) { glyph = day ? 0xf003 : 0xf04a; tint = 0xFFCCD9E9; }
+            else if (code >= 51 && code <= 55) { glyph = day ? 0xf00b : 0xf02b; tint = 0xFF82CFFF; }
+            else if (code == 56 || code == 57 || code == 66 || code == 67) {
+                glyph = day ? 0xf006 : 0xf026; tint = 0xFFA7DBF9;
             }
-            int tint = "sun".equals(kind) || "partly".equals(kind) ? 0xFFFFD65D
-                    : "rain".equals(kind) ? 0xFF82CFFF
-                    : "thunder".equals(kind) ? 0xFFFFC860
-                    : "snow".equals(kind) ? 0xFFB5E7FF : 0xFFE4F0FF;
+            else if (code >= 61 && code <= 65) { glyph = day ? 0xf008 : 0xf028; tint = 0xFF82CFFF; }
+            else if (code >= 71 && code <= 77 || code == 85 || code == 86) {
+                glyph = day ? 0xf00a : 0xf02a; tint = 0xFFB5E7FF;
+            }
+            else if (code >= 80 && code <= 82) { glyph = day ? 0xf009 : 0xf029; tint = 0xFF82CFFF; }
+            else if (code == 96 || code == 99) { glyph = day ? 0xf004 : 0xf024; tint = 0xFFFFC860; }
+            else if (code >= 95) { glyph = day ? 0xf010 : 0xf02d; tint = 0xFFFFC860; }
+            else { glyph = 0xf013; tint = 0xFFE4F0FF; }
             p.reset(); p.setAntiAlias(true); p.setTypeface(weatherTypeface);
             p.setStyle(Paint.Style.FILL); p.setColor(tint);
             p.setTextSize(Math.min(getWidth() * 0.86f, getHeight() * 0.9f));

@@ -11,6 +11,5 @@
 - Własna kolejność i wybór aplikacji w dolnym pasku.
 - Tłumaczenie interfejsu (EN).
 - Podział `DashboardActivity` na mniejsze klasy.
-- Uporządkowanie nieużywanego kodu ikon IMGW (`ImgwIconRepository`).
 
 Sterowanie oświetleniem nie jest częścią tej wersji.

@@ -25,6 +25,7 @@
 - **Your clubs' fixtures** — pick one or two teams from any Polish league available on [kalendarzeligowe.pl](https://kalendarzeligowe.pl); fixtures update daily, with club crests.
 - **Weather for any city** — current conditions, hourly and 7-day forecast from [Open-Meteo](https://open-meteo.com) (no API key).
 - **Day and night modes**, app dock and full app drawer, quick access to TV inputs.
+- **Polish or English interface** and Celsius or Fahrenheit temperature, selectable in LinarTV settings.
 - **Wallpapers from your phone** — scan a QR code and upload photos over your home Wi-Fi (6-digit code, attempt limit).
 - **Screensaver** with your photos after 5 minutes of inactivity.
 
@@ -49,6 +50,7 @@ Signed releases: see [docs/RELEASING.md](docs/RELEASING.md).
 - Fixtures: [kalendarzeligowe.pl](https://kalendarzeligowe.pl) — used with the site owner's permission.
 - Weather data: [Open-Meteo.com](https://open-meteo.com) (CC BY 4.0).
 - Weather Icons font by Erik Flowers (SIL OFL 1.1).
+- Weather symbols follow Open-Meteo WMO codes, including separate day and night variants.
 - Club crests belong to their clubs — see [docs/CRESTS.md](docs/CRESTS.md).
 
 ### License
@@ -64,6 +66,7 @@ Code: [MIT](LICENSE). Club crests and third-party logos are not covered by the c
 - **Terminarz Twoich klubów** — wybierz jedną lub dwie drużyny z lig dostępnych na [kalendarzeligowe.pl](https://kalendarzeligowe.pl); terminarze odświeżają się codziennie, z herbami klubów.
 - **Pogoda dla dowolnego miasta** — aktualne warunki, prognoza godzinowa i 7-dniowa z [Open-Meteo](https://open-meteo.com), bez klucza API. Miasto zmienisz w *Ustawieniach*.
 - **Tryb dzienny i nocny**, pasek aplikacji i pełna lista aplikacji, szybki dostęp do źródeł TV.
+- **Język polski lub angielski** oraz temperatura w stopniach Celsjusza lub Fahrenheita, wybierane w ustawieniach LinarTV.
 - **Tapety z telefonu** — zeskanuj kod QR i wyślij zdjęcia przez domowe Wi-Fi (6-cyfrowy kod z limitem prób).
 - **Wygaszacz** z Twoimi zdjęciami po 5 minutach bezczynności.
 
@@ -88,6 +91,7 @@ Podpisane wydania: [docs/RELEASING.md](docs/RELEASING.md). Plan prac: [docs/ROAD
 - Terminarze: [kalendarzeligowe.pl](https://kalendarzeligowe.pl) — za zgodą właściciela serwisu.
 - Pogoda: [Open-Meteo.com](https://open-meteo.com) (CC BY 4.0).
 - Font Weather Icons: Erik Flowers (SIL OFL 1.1).
+- Symbole pogody odpowiadają kodom WMO z Open-Meteo i uwzględniają porę dnia.
 - Herby należą do klubów — zobacz [docs/CRESTS.md](docs/CRESTS.md).
 
 ### Licencja

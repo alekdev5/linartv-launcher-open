@@ -36,9 +36,9 @@ final class PublicForecastClient {
         }
     }
 
-    static List<Place> searchPlaces(String query) throws Exception {
+    static List<Place> searchPlaces(String query, String language) throws Exception {
         JSONObject response = read(GEOCODING + "?name=" + URLEncoder.encode(query, "UTF-8")
-                + "&count=10&language=pl&format=json", 100_000);
+                + "&count=10&language=" + URLEncoder.encode(language, "UTF-8") + "&format=json", 100_000);
         List<Place> places = new ArrayList<>();
         JSONArray results = response.optJSONArray("results");
         if (results == null) return places;
@@ -55,8 +55,8 @@ final class PublicForecastClient {
         JSONObject response = read(FORECAST
                 + "?latitude=" + String.format(Locale.ROOT, "%.4f", latitude)
                 + "&longitude=" + String.format(Locale.ROOT, "%.4f", longitude)
-                + "&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,pressure_msl,wind_speed_10m"
-                + "&hourly=temperature_2m,weather_code"
+                + "&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,pressure_msl,wind_speed_10m,is_day"
+                + "&hourly=temperature_2m,weather_code,is_day"
                 + "&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset"
                 + "&wind_speed_unit=ms&timezone=auto&forecast_days=7", 300_000);
         TimeZone zone = TimeZone.getTimeZone(response.optString("timezone", "UTC"));
@@ -65,6 +65,7 @@ final class PublicForecastClient {
         JSONArray times = rawHourly.getJSONArray("time");
         JSONArray temperatures = rawHourly.getJSONArray("temperature_2m");
         JSONArray codes = rawHourly.getJSONArray("weather_code");
+        JSONArray daylight = rawHourly.getJSONArray("is_day");
         JSONArray hours = new JSONArray();
         long now = System.currentTimeMillis();
         String currentIcon = "";
@@ -73,7 +74,7 @@ final class PublicForecastClient {
             Date time = parseTime(times.getString(i), zone);
             if (time == null) continue;
             long distance = Math.abs(time.getTime() - now);
-            String icon = icon(codes.getInt(i));
+            String icon = icon(codes.getInt(i), daylight.optInt(i, 1) == 1);
             if (distance < nearest) { nearest = distance; currentIcon = icon; }
             if (time.getTime() >= now - 30 * 60_000L && time.getTime() <= now + 12 * 60 * 60_000L)
                 hours.put(new JSONObject().put("time", time.getTime())
@@ -83,7 +84,7 @@ final class PublicForecastClient {
         JSONObject rawDaily = response.getJSONObject("daily");
         JSONArray dayIcons = new JSONArray();
         JSONArray dayCodes = rawDaily.getJSONArray("weather_code");
-        for (int i = 0; i < dayCodes.length(); i++) dayIcons.put(icon(dayCodes.getInt(i)));
+        for (int i = 0; i < dayCodes.length(); i++) dayIcons.put(icon(dayCodes.getInt(i), true));
         JSONObject daily = new JSONObject()
                 .put("time", rawDaily.getJSONArray("time"))
                 .put("temperature_2m_max", rawDaily.getJSONArray("temperature_2m_max"))
@@ -101,9 +102,11 @@ final class PublicForecastClient {
             copy(rawCurrent, "precipitation", current, "precipitation");
             copy(rawCurrent, "pressure_msl", current, "pressure");
             copy(rawCurrent, "wind_speed_10m", current, "wind");
-            if (rawCurrent.has("weather_code")) currentIcon = icon(rawCurrent.optInt("weather_code"));
+            if (rawCurrent.has("weather_code"))
+                currentIcon = icon(rawCurrent.optInt("weather_code"), rawCurrent.optInt("is_day", 1) == 1);
         }
-        return new JSONObject().put("provider", "Open-Meteo").put("timezone", zone.getID()).put("hourly", hours)
+        return new JSONObject().put("provider", "Open-Meteo").put("icon_format", 2)
+                .put("timezone", zone.getID()).put("hourly", hours)
                 .put("daily", daily).put("current_icon", currentIcon).put("sun", sun)
                 .put("current", current);
     }
@@ -140,12 +143,7 @@ final class PublicForecastClient {
         } catch (Exception ignored) { return null; }
     }
 
-    private static String icon(int code) {
-        if (code == 0) return "n0";
-        if (code <= 2) return "n1";
-        if (code == 3 || code == 45 || code == 48) return "n3";
-        if (code >= 71 && code <= 77 || code == 85 || code == 86) return "z70";
-        if (code >= 95) return "z80";
-        return "z60";
+    private static String icon(int code, boolean day) {
+        return (day ? "d" : "n") + code;
     }
 }

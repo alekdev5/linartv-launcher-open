@@ -30,14 +30,16 @@ final class PhotoUploadServer implements AutoCloseable {
     private static final int MAX_FAILED_PINS = 5;
     private int failedPins;
     private final File folder;
+    private final boolean english;
     private final Consumer<String> onUploaded;
     private final String pin = String.format(Locale.ROOT, "%06d", new SecureRandom().nextInt(1_000_000));
     private final ServerSocket server;
     private final Thread worker;
     private volatile boolean running = true;
 
-    PhotoUploadServer(File folder, Consumer<String> onUploaded) throws IOException {
+    PhotoUploadServer(File folder, boolean english, Consumer<String> onUploaded) throws IOException {
         this.folder = folder;
+        this.english = english;
         this.onUploaded = onUploaded;
         server = new ServerSocket(PORT);
         worker = new Thread(this::serve, "wallpaper-upload");
@@ -46,6 +48,7 @@ final class PhotoUploadServer implements AutoCloseable {
     }
 
     String pin() { return pin; }
+    private String tr(String polish, String englishText) { return english ? englishText : polish; }
 
     static String localIpv4() {
         String fallback = null;
@@ -94,7 +97,7 @@ final class PhotoUploadServer implements AutoCloseable {
         } else if (request.startsWith("POST /upload ")) {
             receive(input, output, headers);
         } else {
-            respond(output, 404, "text/plain; charset=utf-8", "Nie znaleziono strony");
+            respond(output, 404, "text/plain; charset=utf-8", tr("Nie znaleziono strony", "Page not found"));
         }
     }
 
@@ -102,12 +105,13 @@ final class PhotoUploadServer implements AutoCloseable {
             throws IOException {
         if (failedPins >= MAX_FAILED_PINS) {
             respond(output, 429, "text/plain; charset=utf-8",
-                    "Zbyt wiele błędnych kodów. Zamknij okno na TV i otwórz je ponownie, aby dostać nowy kod.");
+                    tr("Zbyt wiele błędnych kodów. Zamknij okno na TV i otwórz je ponownie, aby dostać nowy kod.",
+                            "Too many incorrect codes. Close and reopen the TV window for a new code."));
             return;
         }
         if (!pin.equals(headers.get("x-pin"))) {
             failedPins++;
-            respond(output, 403, "text/plain; charset=utf-8", "Nieprawidłowy kod z telewizora");
+            respond(output, 403, "text/plain; charset=utf-8", tr("Nieprawidłowy kod z telewizora", "Incorrect TV code"));
             return;
         }
         long length;
@@ -115,7 +119,7 @@ final class PhotoUploadServer implements AutoCloseable {
         catch (NumberFormatException e) { length = -1; }
         boolean chunked = "chunked".equalsIgnoreCase(headers.getOrDefault("transfer-encoding", ""));
         if ((!chunked && length <= 0) || length > MAX_BYTES) {
-            respond(output, 413, "text/plain; charset=utf-8", "Plik musi mieć mniej niż 25 MB");
+            respond(output, 413, "text/plain; charset=utf-8", tr("Plik musi mieć mniej niż 25 MB", "File must be under 25 MB"));
             return;
         }
         String original;
@@ -140,7 +144,7 @@ final class PhotoUploadServer implements AutoCloseable {
                             break;
                         }
                         if (chunk < 0 || chunk > MAX_BYTES - total) {
-                            respond(output, 413, "text/plain; charset=utf-8", "Plik musi mieć mniej niż 25 MB");
+                            respond(output, 413, "text/plain; charset=utf-8", tr("Plik musi mieć mniej niż 25 MB", "File must be under 25 MB"));
                             return;
                         }
                         copyBytes(input, file, buffer, chunk);
@@ -158,7 +162,8 @@ final class PhotoUploadServer implements AutoCloseable {
             BitmapFactory.decodeFile(temp.getAbsolutePath(), bounds);
             if (extension == null || bounds.outWidth < 1 || bounds.outHeight < 1
                     || bounds.outWidth > 20_000 || bounds.outHeight > 20_000) {
-                respond(output, 415, "text/plain; charset=utf-8", "Wybierz zdjęcie JPG, PNG lub WebP");
+                respond(output, 415, "text/plain; charset=utf-8", tr("Wybierz zdjęcie JPG, PNG lub WebP",
+                        "Choose a JPG, PNG or WebP photo"));
                 return;
             }
             String stem = original.replaceAll("(?i)\\.(jpg|jpeg|png|webp)$", "")
@@ -168,7 +173,7 @@ final class PhotoUploadServer implements AutoCloseable {
             File target = new File(folder, System.currentTimeMillis() + "-" + stem + "." + extension);
             if (!temp.renameTo(target)) throw new IOException("Nie udało się zapisać zdjęcia");
             onUploaded.accept(target.getName());
-            respond(output, 200, "text/plain; charset=utf-8", "Dodano: " + target.getName());
+            respond(output, 200, "text/plain; charset=utf-8", tr("Dodano: ", "Added: ") + target.getName());
         } finally {
             temp.delete();
         }
@@ -223,8 +228,8 @@ final class PhotoUploadServer implements AutoCloseable {
         output.flush();
     }
 
-    private static String page() {
-        return "<!doctype html><html lang=pl><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>"
+    private String page() {
+        String html = "<!doctype html><html lang=pl><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>"
                 + "<title>LinarTV · zdjęcia</title><style>body{margin:0;min-height:100vh;background:#111d38;"
                 + "color:#f6f8ff;font:18px system-ui;display:grid;place-items:center}main{width:min(90vw,520px);"
                 + "background:#213454;border:1px solid #6d87ac;border-radius:24px;padding:28px;box-sizing:border-box}"
@@ -242,6 +247,22 @@ final class PhotoUploadServer implements AutoCloseable {
                 + "s.textContent='Przesyłanie…';for(let i=0;i<f.length;i++){let x=f[i];if(x.size>25000000){s.textContent+='\\nZa duży plik: '+x.name;continue}"
                 + "try{let r=await fetch('/upload',{method:'POST',headers:{'X-Pin':p,'X-Filename':encodeURIComponent(x.name),'Content-Type':x.type||'application/octet-stream'},body:x});"
                 + "let t=await r.text();s.textContent+='\\n'+t}catch(e){s.textContent+='\\nNie udało się wysłać '+x.name+'. Sprawdź, czy okno z kodem jest nadal otwarte na TV, i spróbuj ponownie.'}}}</script></html>";
+        if (!english) return html;
+        return html.replace("lang=pl", "lang=en")
+                .replace("LinarTV · zdjęcia", "LinarTV · photos")
+                .replace("Zdjęcia na TV", "Photos on TV")
+                .replace("Telefon i telewizor muszą być w tej samej sieci. Wybierz zdjęcia JPG, PNG lub WebP, do 25 MB każde.",
+                        "Phone and TV must be on the same network. Choose JPG, PNG or WebP photos, up to 25 MB each.")
+                .replace("Kod widoczny na TV", "Code shown on TV")
+                .replace("6 cyfr", "6 digits")
+                .replace("Zdjęcia", "Photos")
+                .replace("Dodaj zdjęcia", "Add photos")
+                .replace("Wpisz kod i wybierz zdjęcia.", "Enter the code and choose photos.")
+                .replace("Przesyłanie…", "Uploading…")
+                .replace("Za duży plik: ", "File too large: ")
+                .replace("Nie udało się wysłać ", "Could not upload ")
+                .replace(". Sprawdź, czy okno z kodem jest nadal otwarte na TV, i spróbuj ponownie.",
+                        ". Check that the code window is still open on TV and try again.");
     }
 
     @Override public void close() {
