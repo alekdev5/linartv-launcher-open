@@ -1355,9 +1355,15 @@ public final class DashboardActivity extends Activity {
     private void crestBadge(String club, String league, int x, int y) {
         final int size = 128;
         Bitmap bitmap = crests.get(club, league);
-        TextView fallback = text(club.substring(0, Math.min(2, club.length())).toUpperCase(PL), 26,
-                ink, true, x, y, size, size);
+        TextView fallback = text(clubInitials(club), 35,
+                night ? 0xFFF5F8FF : 0xFF183154, true, x + 8, y + 8, size - 16, size - 16);
         fallback.setGravity(Gravity.CENTER);
+        GradientDrawable circle = new GradientDrawable();
+        circle.setShape(GradientDrawable.OVAL);
+        circle.setColor(night ? 0xE12B4268 : 0xE6E4ECF6);
+        circle.setStroke(Math.max(1, px(2)), night ? 0xFF8DBDFF : 0xFF6994CC);
+        fallback.setBackground(circle);
+        fallback.setContentDescription(club);
         ImageView image = new ImageView(this);
         image.setScaleType(ImageView.ScaleType.FIT_CENTER);
         if (bitmap != null) setCrestBitmap(image, bitmap);
@@ -1366,6 +1372,13 @@ public final class DashboardActivity extends Activity {
         place(image, x, y, size, size);
         crestSlots.computeIfAbsent(league + "|" + club, k -> new ArrayList<>())
                 .add(new CrestSlot(image, fallback, club, league));
+    }
+
+    private String clubInitials(String club) {
+        String[] words = club.trim().split("\\s+");
+        if (words.length > 1)
+            return (words[0].substring(0, 1) + words[1].substring(0, 1)).toUpperCase(PL);
+        return club.substring(0, Math.min(2, club.length())).toUpperCase(PL);
     }
 
     private void updateCrestViews(String club) {
