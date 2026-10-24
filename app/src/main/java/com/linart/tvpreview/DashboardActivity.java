@@ -55,10 +55,8 @@ import java.util.TimeZone;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.WeakHashMap;
-import java.net.HttpURLConnection;
 import java.net.URL;
 import java.io.InputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -383,15 +381,15 @@ public final class DashboardActivity extends Activity {
     private void refreshCalendar(CalendarFeed feed) {
         if (!feed.configured()) return;
         long now = System.currentTimeMillis();
-        if (feed.loading || (now - feed.updatedAt < CALENDAR_REFRESH_MS
+        boolean hasApiCache = !getPreferences(MODE_PRIVATE)
+                .getString(feed.key + "_calendar_matches", "").isEmpty();
+        if (feed.loading || (hasApiCache && now - feed.updatedAt < CALENDAR_REFRESH_MS
                 && !upcomingMatches(feed, now).isEmpty())
                 || now - feed.attemptedAt < 30 * 60 * 1000) return;
         feed.loading = true;
         feed.attemptedAt = now;
         new Thread(() -> {
-            if ("4-liga-swietokrzyska".equals(feed.leagueSlug)
-                    || "klasa-okregowa-swietokrzyska".equals(feed.leagueSlug)) {
-                try {
+            try {
                     List<IcsMatchParser.Match> matches = LeagueCatalogClient.teamMatches(feed.url,
                             System.currentTimeMillis() - CALENDAR_PARSE_LOOKBACK_MS);
                     JSONArray rows = new JSONArray();
@@ -409,51 +407,19 @@ public final class DashboardActivity extends Activity {
                         feed.updatedAt = System.currentTimeMillis();
                         feed.selected = 0;
                         getPreferences(MODE_PRIVATE).edit().putString(feed.key + "_calendar_matches", rows.toString())
+                                .remove(feed.key + "_calendar_ics")
                                 .putLong(feed.key + "_calendar_updated", feed.updatedAt).apply();
                         buildScreen();
                         crests.refreshIfDue(clubOneCalendar.matches, clubTwoCalendar.matches, true);
                     });
-                    return;
-                } catch (Exception e) {
-                    android.util.Log.w("LinarTV", "Team match API failed; trying ICS", e);
-                }
-            }
-            String ics = null;
-            HttpURLConnection connection = null;
-            try {
-                connection = (HttpURLConnection) new URL(feed.url).openConnection();
-                connection.setConnectTimeout(8000);
-                connection.setReadTimeout(8000);
-                if (connection.getResponseCode() != 200) throw new IllegalStateException("Calendar HTTP " + connection.getResponseCode());
-                try (InputStream stream = connection.getInputStream(); ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {
-                    byte[] buffer = new byte[4096];
-                    int count;
-                    while ((count = stream.read(buffer)) != -1) {
-                        bytes.write(buffer, 0, count);
-                        if (bytes.size() > 500_000) throw new IllegalStateException("Calendar too large");
-                    }
-                    ics = bytes.toString("UTF-8");
-                }
-                if (!ics.startsWith("BEGIN:VCALENDAR") || !ics.contains("END:VCALENDAR"))
-                    throw new IllegalStateException("Invalid calendar");
-            } catch (Exception ignored) { ics = null; }
-            finally { if (connection != null) connection.disconnect(); }
-            final String fetched = ics;
-            handler.post(() -> {
-                if (feed != clubOneCalendar && feed != clubTwoCalendar) return;
-                feed.loading = false;
-                if (fetched != null) {
-                    feed.matches = IcsMatchParser.parse(fetched, feed.requiredDescription,
-                            System.currentTimeMillis() - CALENDAR_PARSE_LOOKBACK_MS);
-                    feed.updatedAt = System.currentTimeMillis();
-                    feed.selected = 0;
-                    getPreferences(MODE_PRIVATE).edit().putString(feed.key + "_calendar_ics", fetched)
-                            .remove(feed.key + "_calendar_matches")
-                            .putLong(feed.key + "_calendar_updated", feed.updatedAt).apply();
+            } catch (Exception e) {
+                android.util.Log.w("LinarTV", "Team match API failed; keeping cached matches", e);
+                handler.post(() -> {
+                    if (feed != clubOneCalendar && feed != clubTwoCalendar) return;
+                    feed.loading = false;
                     buildScreen();
-                    crests.refreshIfDue(clubOneCalendar.matches, clubTwoCalendar.matches, true);
-                }
-            });
+                });
+            }
         }, "calendar-" + feed.key).start();
     }
 
@@ -982,8 +948,8 @@ public final class DashboardActivity extends Activity {
         status.setMinHeight(px(46));
         status.setGravity(Gravity.CENTER_VERTICAL);
         content.addView(status);
-        first.setOnClickListener(v -> chooseLeague(0, draft, first, dialog, status));
-        second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
+        first.setOnClickListener(v -> chooseRegion(0, draft, first, dialog, status));
+        second.setOnClickListener(v -> chooseRegion(1, draft, second, dialog, status));
         LinearLayout actions = new LinearLayout(this);
         actions.setGravity(Gravity.RIGHT);
         TextView remove = setupButton(tr("Usuń drugi klub", "Remove second club"));
@@ -1008,6 +974,16 @@ public final class DashboardActivity extends Activity {
         showDialogWithBlur(dialog);
         dialog.getWindow().setLayout(px(960), -2);
         first.requestFocusFromTouch();
+    }
+
+    private void chooseRegion(int slot, CalendarFeed[] draft, TextView button,
+                              Dialog setup, TextView status) {
+        showChoiceDialog(tr("Wybierz region", "Choose a region"),
+                new String[]{tr("Polska", "Poland"), tr("Świat", "World")}, index -> {
+                    if (index == 0) chooseLeague(slot, draft, button, setup, status);
+                    else status.setText(tr("Kalendarze światowe dodamy po uzyskaniu zgody fixtur.es.",
+                            "World fixtures will be added after fixtur.es grants permission."));
+                });
     }
 
     private void chooseLeague(int slot, CalendarFeed[] draft, TextView button,

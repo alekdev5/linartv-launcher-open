@@ -22,7 +22,7 @@ Użytkownik sam decyduje, które aplikacje są widoczne na pierwszym ekranie i w
 ## 0.3.0 — mecze z całego świata (fixtur.es)
 Drugie źródło terminarzy obok kalendarzeligowe.pl: [fixtur.es](https://fixtur.es/) (De Agendamakers B.V.) — darmowe kalendarze ICS dla drużyn z lig na całym świecie. Otwiera LinarTV na rynki poza Polską.
 
-Uzgodniona reguła wyboru źródła: **polskie ligi → kalendarzeligowe.pl; pozostałe ligi → fixtur.es**. Użytkownik wybiera kraj, ligę i klub; aplikacja dobiera dostawcę automatycznie. Można dodać jeden lub dwa kluby, także z różnych krajów.
+Uzgodniona reguła wyboru źródła: **Polska → API kalendarzeligowe.pl; Świat → kalendarze ICS fixtur.es**. Kreator zaczyna się od wyboru „Polska / Świat”; dla Polski pokazuje ligę i klub. Część „Świat” zostanie uruchomiona po uzgodnieniu warunków z fixtur.es. Można dodać jeden lub dwa kluby.
 
 Stan rozpoznania (24.10.2026): w polskiej części serwisu są Ekstraklasa i I liga; niższych lig nie znaleziono. Kalendarz klubowy obejmuje też puchary i sparingi. Część odległych terminów ma godzinę 01:00/02:00 — wygląda na datę bez potwierdzonej godziny, więc aplikacja nie powinna pokazywać jej jako pewnej godziny meczu. Właściciel projektu wysłał już pytanie do operatora o wykorzystanie źródła.
 

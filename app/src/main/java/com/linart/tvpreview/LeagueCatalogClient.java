@@ -84,7 +84,7 @@ final class LeagueCatalogClient {
             for (int page = 1; page <= 10; page++) {
                 JSONObject matches = readObject("matches?competitionId=" + league.id
                         + "&season=" + URLEncoder.encode(league.season, "UTF-8")
-                        + "&pageSize=200&page=" + page);
+                        + "&pageSize=100&page=" + page);
                 JSONArray data = matches.optJSONArray("data");
                 if (data == null || data.length() == 0) break;
                 for (int i = 0; i < data.length(); i++) {
