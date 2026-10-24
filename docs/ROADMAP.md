@@ -22,11 +22,16 @@ Użytkownik sam decyduje, które aplikacje są widoczne na pierwszym ekranie i w
 ## 0.3.0 — mecze z całego świata (fixtur.es)
 Drugie źródło terminarzy obok kalendarzeligowe.pl: [fixtur.es](https://fixtur.es/) (De Agendamakers B.V.) — darmowe kalendarze ICS dla drużyn z lig na całym świecie. Otwiera LinarTV na rynki poza Polską.
 
+Uzgodniona reguła wyboru źródła: **polskie ligi → kalendarzeligowe.pl; pozostałe ligi → fixtur.es**. Użytkownik wybiera kraj, ligę i klub; aplikacja dobiera dostawcę automatycznie. Można dodać jeden lub dwa kluby, także z różnych krajów.
+
 Stan rozpoznania (24.10.2026): w polskiej części serwisu są Ekstraklasa i I liga; niższych lig nie znaleziono. Kalendarz klubowy obejmuje też puchary i sparingi. Część odległych terminów ma godzinę 01:00/02:00 — wygląda na datę bez potwierdzonej godziny, więc aplikacja nie powinna pokazywać jej jako pewnej godziny meczu. Właściciel projektu wysłał już pytanie do operatora o wykorzystanie źródła.
+
+Próba techniczna: strona klubu wskazuje adres `https://ics.fixtur.es/v2/<klub>.ics`; przykładowy kalendarz Arsenalu zawiera także historyczne wydarzenia i ma około 200 kB. Parser musi filtrować daty, rozpoznawać strefy czasowe i oddzielać dopiski z wynikiem/rozgrywkami od nazwy rywala. Nie wyprowadzać adresów ICS wyłącznie z nazwy klubu — korzystać z linku podanego przez dostawcę.
 
 - [ ] **Etap 1 — wklejany link (bez katalogu):** w kreatorze klubów opcja „Dodaj kalendarz z fixtur.es”; użytkownik kopiuje na fixtur.es link do kalendarza swojej drużyny i wkleja go w LinarTV (lub skanuje kod QR i wkleja z telefonu). Aplikacja działa jak zwykły klient kalendarza.
 - [x] **Kontakt:** wysłano pytanie do operatora o wykorzystanie źródła; przed integracją katalogu potwierdzić warunki, stabilny format adresów ICS i dopuszczalną częstotliwość odświeżania.
 - [ ] **Etap 2 — katalog (tylko po zgodzie):** wybór kraj → liga → drużyna lub wyszukiwanie nazwy w kreatorze.
+- [ ] **Kierowanie źródła:** w kreatorze nie pokazywać użytkownikowi technicznego wyboru dostawcy; Polska korzysta z obecnego katalogu, inne kraje z zatwierdzonego katalogu fixtur.es. Zapisać identyfikator dostawcy przy każdym klubie.
 - [ ] **Opisy wydarzeń:** pokazywać opis z kalendarza w szczegółach meczu (fixtur.es umieszcza tam swoje treści promocyjne — nie ukrywać ich).
 - [ ] **Parser ICS:** dopasować do formatu fixtur.es (nazwy drużyn w SUMMARY, rozgrywki, kolejka, wyniki na żywo, różne strefy czasowe).
 - [ ] **Godziny meczów:** rozpoznawać terminy orientacyjne/bez ustalonej godziny; potwierdzić znaczenie tych wpisów z operatorem źródła.
