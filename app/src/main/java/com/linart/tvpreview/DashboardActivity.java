@@ -2391,6 +2391,9 @@ public final class DashboardActivity extends Activity {
         if (manager == null) return;
         new Thread(() -> {
             for (String pkg : CLEANUP_PACKAGES) {
+                // Cast discovery and reception must remain available independently of the launcher.
+                if ("com.google.android.apps.mediashell".equals(pkg)
+                        || "com.google.android.gms".equals(pkg) || getPackageName().equals(pkg)) continue;
                 try { manager.killBackgroundProcesses(pkg); }
                 catch (SecurityException ignored) { }
             }
