@@ -1732,7 +1732,7 @@ public final class DashboardActivity extends Activity {
             liveBadge.setBackground(shape(0xFFD8283F, 0xFFFF9AA6, 15));
         } else {
             text(matchDateLabel(match), 18, color, false,
-                    x + 260, y + 231, 215, 27).setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+                    x + 260, y + 231, 250, 27).setGravity(Gravity.CENTER); // centred under the kick-off time
         }
         feed.tileButton = null;
         if (upcoming.size() > 1) {
