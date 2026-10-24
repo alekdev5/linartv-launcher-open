@@ -7,6 +7,10 @@
 - [x] Podpisane APK i instalacja przez Downloader.
 - [ ] Test na kilku urządzeniach Android TV / Google TV.
 
+## Jakość terminarzy w ligach świętokrzyskich
+- [ ] Zweryfikować znaczenie `isDateTbd` w API kalendarzeligowe.pl. Dla Alit Ożarów – Neptun Końskie (24.10.2026) oraz Orlicz Suchedniów – Alit Ożarów (31.10.2026) API i Kielecka Piłka podają te same godziny, choć flaga w API ma wartość `true`; obecnie LinarTV ukrywa godzinę.
+- [ ] Porównać więcej najbliższych spotkań IV ligi, okręgówki i klas A/B z Kielecką Piłką oraz sprawdzić dostępność ustrukturyzowanego eksportu. Przed włączeniem tego serwisu jako źródła danych uzgodnić sposób pobierania z redakcją.
+
 ## 0.2.0 — własne aplikacje na pulpicie
 Użytkownik sam decyduje, które aplikacje są widoczne na pierwszym ekranie i w jakiej kolejności. Dziś pasek ma na stałe YouTube, Netflix, CANAL+ i Spotify.
 
