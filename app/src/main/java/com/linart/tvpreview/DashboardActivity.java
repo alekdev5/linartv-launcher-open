@@ -83,9 +83,18 @@ public final class DashboardActivity extends Activity {
     private static final int TILE_BG = 0x80152146;
     private static final int TILE_FOCUS_BG = 0xB0335D91;
     private static final int FOCUS_RING = 0xFF9FD5FF;
-    private static final String[] DOCK_BRANDS = {"YouTube", "Netflix", "CANAL+", "Spotify"};
-    private static final String[] DOCK_PACKAGES = {"com.google.android.youtube.tv", "com.netflix.ninja",
-            "com.canal.android.canal", "com.spotify.tv.android"};
+    /** Preferred dock order. Only apps that are actually installed ever reach the dock. */
+    private static final String[] POPULAR_DOCK_PACKAGES = {"com.google.android.youtube.tv", "com.netflix.ninja",
+            "com.canal.android.canal", "com.spotify.tv.android", "com.disney.disneyplus", "com.wbd.stream",
+            "com.amazon.amazonvideo.livingroom", "com.tvp.vodtv.tv", "com.google.android.youtube.tvkids",
+            "pl.cda.tv"};
+    private static final int DOCK_SIZE = 4;
+    private static final int DOCK_TILE_WIDTH = 340, DOCK_GAP = 66;
+    private static final int DOCK_SPAN = DOCK_SIZE * DOCK_TILE_WIDTH + (DOCK_SIZE - 1) * DOCK_GAP;
+    /** Launchable system entries that are not apps a person would pin to the dock. */
+    private static final java.util.Set<String> HIDDEN_APP_PACKAGES = new HashSet<>(java.util.Arrays.asList(
+            "org.droidtv.playtv", "org.droidtv.eum", "org.droidtv.channels", "org.droidtv.contentexplorer",
+            "com.android.traceur", "com.android.tv.settings"));
     private static final String[] CLEANUP_PACKAGES = {"com.google.android.youtube.tv", "com.netflix.ninja",
             "com.canal.android.canal", "com.spotify.tv.android", "com.tvp.vodtv.tv",
             "com.google.android.youtube.tvkids", "pl.cda.tv"};
@@ -107,6 +116,12 @@ public final class DashboardActivity extends Activity {
     private final HashMap<String, Bitmap> logoCache = new HashMap<>();
     private final List<View> dockCards = new ArrayList<>();
     private final List<View> dockGlows = new ArrayList<>();
+    private final List<String> dockPackages = new ArrayList<>();
+    private int dockMoveIndex = -1;
+    private List<String> dockMoveBackup;
+    private boolean suppressDockKeyUp;
+    private TextView dockMoveHint;
+    private boolean firstRunSetup;
     private final List<List<View>> extraAppRows = new ArrayList<>();
     private int drawerFocusRow;
     private int drawerFocusColumn;
@@ -269,7 +284,7 @@ public final class DashboardActivity extends Activity {
         restoreCalendar(clubTwoCalendar, saved);
         buildScreen();
         if (!clubOneCalendar.configured()) handler.post(() -> {
-            if (!isFinishing() && !setupShown) showTeamSetup();
+            if (!isFinishing() && !setupShown) { firstRunSetup = true; showTeamSetup(); }
         });
     }
 
@@ -1366,6 +1381,11 @@ public final class DashboardActivity extends Activity {
                     "Choose the first club before saving.")); return; }
             saveConfiguredClubs(draft);
             dialog.dismiss();
+            if (firstRunSetup) {
+                // Last first-run step: pick the dock apps among what is actually installed.
+                firstRunSetup = false;
+                handler.postDelayed(() -> { if (!isFinishing()) showDockEditor(true); }, 350);
+            }
         });
         content.addView(actions);
         dialog.setContentView(content);
@@ -2000,6 +2020,8 @@ public final class DashboardActivity extends Activity {
         popupBlurImage.setImageBitmap(popupBlurBitmap);
         popupBlurImage.setScaleType(ImageView.ScaleType.FIT_XY);
         popupBlurImage.setFocusable(false);
+        // Above raised (focused) dock tiles, which would otherwise draw over the blur.
+        popupBlurImage.setElevation(px(60));
         root.addView(popupBlurImage, new FrameLayout.LayoutParams(-1, -1));
     }
 
@@ -2288,8 +2310,20 @@ public final class DashboardActivity extends Activity {
     }
 
     private void buildAppDock() {
-        for (int i = 0; i < DOCK_BRANDS.length; i++)
-            dockTile(DOCK_BRANDS[i], DOCK_PACKAGES[i], 56 + i * 406);
+        // While a tile is being moved the unsaved order wins over the saved one.
+        if (dockMoveIndex < 0) {
+            dockPackages.clear();
+            dockPackages.addAll(resolveDock());
+        }
+        // Fewer than four tiles keep their size and spacing and sit centred under the cards.
+        int tiles = Math.max(1, dockPackages.size());
+        int firstX = 56 + (DOCK_SPAN - (tiles * DOCK_TILE_WIDTH + (tiles - 1) * DOCK_GAP)) / 2;
+        for (int i = 0; i < dockPackages.size(); i++)
+            dockTile(appLabel(dockPackages.get(i)), dockPackages.get(i), firstX + i * (DOCK_TILE_WIDTH + DOCK_GAP));
+        // With no installed apps at all, a single "+" tile leads to the editor instead of an empty dock.
+        if (dockPackages.isEmpty()) dockTile(tr("Dodaj aplikacje", "Add apps"), null, firstX);
+        dockMoveHint = null;
+        if (dockMoveIndex >= 0) handler.post(this::paintDockMove);
 
         drawerBackdrop = new FrameLayout(this);
         drawerBackdrop.setClickable(true);
@@ -2322,7 +2356,7 @@ public final class DashboardActivity extends Activity {
         extraAppRows.clear();
         drawerRowsLoaded = false;
 
-        View expandGlow = tileGlow(817, 887, 38, 38, 19);
+        View expandGlow = tileGlow(817, 894, 38, 38, 19);
         dockExpand = new ImageView(this);
         dockExpand.setImageResource(R.drawable.ic_dock_expand);
         dockExpand.setContentDescription(tr("Więcej aplikacji — strzałka w dół", "More apps — press down"));
@@ -2332,7 +2366,7 @@ public final class DashboardActivity extends Activity {
         dockExpand.setClickable(true);
         dockExpand.setOnFocusChangeListener((view, focused) -> showTileGlow(expandGlow, focused));
         dockExpand.setOnClickListener(v -> openAppDrawer());
-        place(dockExpand, 817, 887, 38, 38);
+        place(dockExpand, 817, 894, 38, 38);
     }
 
     private void dockTile(String brand, String pkg, int x) {
@@ -2358,28 +2392,388 @@ public final class DashboardActivity extends Activity {
                 if (artwork == null) artwork = getPackageManager().getApplicationIcon(pkg);
             } catch (PackageManager.NameNotFoundException ignored) { }
         }
+        boolean bannerArtwork = false;
+        if (pkg != null) {
+            try { bannerArtwork = getPackageManager().getApplicationBanner(pkg) != null; }
+            catch (PackageManager.NameNotFoundException ignored) { }
+        }
         if (artwork != null) {
             ImageView icon = new ImageView(this);
             icon.setImageDrawable(artwork);
-            icon.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            // Phone apps have only a square icon; keep it whole instead of cropping it.
+            icon.setScaleType(bannerArtwork ? ImageView.ScaleType.CENTER_CROP : ImageView.ScaleType.FIT_CENTER);
+            if (!bannerArtwork) icon.setPadding(px(20), px(14), px(20), px(14));
             icon.setAlpha(0.93f);
             FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(-1, -1);
             card.addView(icon, iconParams);
         } else {
-            String fallback = pkg == null ? "•••" : brand;
             TextView label = new TextView(this);
-            label.setText(fallback);
+            label.setText(pkg == null ? "+  " + brand : brand);
             label.setTextColor(Color.WHITE);
-            label.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(pkg == null ? 42 : 30));
+            label.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(30));
             label.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
             label.setGravity(Gravity.CENTER);
             card.addView(label, new FrameLayout.LayoutParams(-1, -1));
         }
         card.setOnFocusChangeListener((view, focused) -> {
             if (focused) lastDockFocus = card;
-            setAppTileFocus(card, glow, focused);
+            if (dockMoveIndex < 0) setAppTileFocus(card, glow, focused);
         });
-        card.setOnClickListener(view -> launch(pkg));
+        card.setOnClickListener(view -> {
+            if (pkg == null) showDockEditor(false); else launch(pkg);
+        });
+        if (pkg != null) {
+            card.setLongClickable(true);
+            card.setOnLongClickListener(view -> {
+                showDockMenu(dockCards.indexOf(card));
+                return true;
+            });
+        }
+    }
+
+    /** TV apps plus apps the person installed themselves, preferred apps first. */
+    private List<String> dockCandidates() {
+        java.util.LinkedHashSet<String> found = new java.util.LinkedHashSet<>();
+        PackageManager manager = getPackageManager();
+        for (ResolveInfo info : manager.queryIntentActivities(new Intent(Intent.ACTION_MAIN)
+                .addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER), 0))
+            found.add(info.activityInfo.packageName);
+        for (ResolveInfo info : manager.queryIntentActivities(new Intent(Intent.ACTION_MAIN)
+                .addCategory(Intent.CATEGORY_LAUNCHER), 0)) {
+            android.content.pm.ApplicationInfo app = info.activityInfo.applicationInfo;
+            if ((app.flags & android.content.pm.ApplicationInfo.FLAG_SYSTEM) == 0)
+                found.add(info.activityInfo.packageName);
+        }
+        found.remove(getPackageName());
+        found.removeAll(HIDDEN_APP_PACKAGES);
+        List<String> ordered = new ArrayList<>();
+        for (String pkg : POPULAR_DOCK_PACKAGES) if (found.contains(pkg)) ordered.add(pkg);
+        for (String pkg : found) if (!ordered.contains(pkg)) ordered.add(pkg);
+        return ordered;
+    }
+
+    /** Saved choice first. An uninstalled app's slot is refilled in place, so the others stay put. */
+    private List<String> resolveDock() {
+        List<String> candidates = dockCandidates();
+        List<String> slots = new ArrayList<>();
+        String saved = getPreferences(MODE_PRIVATE).getString("dock_apps", null);
+        if (saved != null) for (String pkg : saved.split(",")) {
+            if (pkg.isEmpty() || slots.size() >= DOCK_SIZE) continue;
+            slots.add(candidates.contains(pkg) && !slots.contains(pkg) ? pkg : null);
+        }
+        java.util.Iterator<String> spare = candidates.iterator();
+        for (int i = 0; i < slots.size(); i++)
+            if (slots.get(i) == null) slots.set(i, nextSpareApp(spare, slots));
+        // A saved dock keeps the number of apps the person chose; only the automatic one fills to four.
+        if (saved == null) while (slots.size() < DOCK_SIZE) slots.add(nextSpareApp(spare, slots));
+        slots.removeIf(java.util.Objects::isNull);
+        return slots;
+    }
+
+    private static String nextSpareApp(java.util.Iterator<String> spare, List<String> taken) {
+        while (spare.hasNext()) {
+            String pkg = spare.next();
+            if (!taken.contains(pkg)) return pkg;
+        }
+        return null;
+    }
+
+    private void saveDock(List<String> packages) {
+        getPreferences(MODE_PRIVATE).edit()
+                .putString("dock_apps", android.text.TextUtils.join(",", packages)).apply();
+    }
+
+    private String appLabel(String pkg) {
+        try {
+            PackageManager manager = getPackageManager();
+            return manager.getApplicationLabel(manager.getApplicationInfo(pkg, 0)).toString();
+        } catch (PackageManager.NameNotFoundException e) { return pkg; }
+    }
+
+    private void refreshDock(int focusIndex) {
+        applyVisualSettingsNow();
+        handler.postDelayed(() -> {
+            if (!dockCards.isEmpty()) dockCards.get(Math.max(0, Math.min(focusIndex, dockCards.size() - 1))).requestFocus();
+        }, 120);
+    }
+
+    // ---------- Long-press menu: replace, move, edit ----------
+
+    private void showDockMenu(int index) {
+        if (index < 0 || index >= dockPackages.size()) return;
+        List<String> labels = new ArrayList<>(java.util.Arrays.asList(
+                tr("Zamień aplikację", "Replace app"), tr("Przesuń", "Move"),
+                tr("Edytuj cały dock", "Edit the whole dock")));
+        if (dockPackages.size() > 1) labels.add(tr("Usuń z docku", "Remove from dock"));
+        showChoiceDialog(appLabel(dockPackages.get(index)), labels.toArray(new String[0]), choice -> {
+            if (choice == 0) showDockReplace(index);
+            else if (choice == 1) startDockMove(index);
+            else if (choice == 2) showDockEditor(false);
+            else {
+                List<String> next = new ArrayList<>(dockPackages);
+                next.remove(index);
+                saveDock(next);
+                refreshDock(index);
+            }
+        });
+    }
+
+    private void showDockReplace(int index) {
+        List<String> options = new ArrayList<>();
+        for (String pkg : dockCandidates()) if (!dockPackages.contains(pkg)) options.add(pkg);
+        String current = appLabel(dockPackages.get(index));
+        if (options.isEmpty()) {
+            showMessageDialog(tr("Zamień aplikację", "Replace app"),
+                    tr("Nie ma innych zainstalowanych aplikacji.", "There are no other installed apps."));
+            return;
+        }
+        String[] labels = new String[options.size()];
+        for (int i = 0; i < labels.length; i++) labels[i] = appLabel(options.get(i));
+        showChoiceDialog(tr("Zamień „", "Replace “") + current + "”", labels, choice -> {
+            List<String> next = new ArrayList<>(dockPackages);
+            next.set(index, options.get(choice));
+            saveDock(next);
+            refreshDock(index);
+        });
+    }
+
+    private void startDockMove(int index) {
+        dockMoveBackup = new ArrayList<>(dockPackages);
+        dockMoveIndex = index;
+        handler.postDelayed(this::paintDockMove, 80);
+    }
+
+    private void paintDockMove() {
+        if (dockMoveIndex < 0 || dockMoveIndex >= dockCards.size()) return;
+        dockCards.get(dockMoveIndex).requestFocus();
+        for (int i = 0; i < dockCards.size(); i++) {
+            boolean lifted = i == dockMoveIndex;
+            View card = dockCards.get(i);
+            card.animate().translationY(lifted ? -px(18) : 0).scaleX(lifted ? 1.05f : 1f)
+                    .scaleY(lifted ? 1.05f : 1f).alpha(lifted ? 1f : 0.55f).setDuration(160).start();
+            card.setElevation(lifted ? px(18) : 0);
+            dockGlows.get(i).animate().alpha(lifted ? 1f : 0f).translationY(lifted ? -px(18) : 0)
+                    .setDuration(160).start();
+        }
+        if (dockMoveHint == null || dockMoveHint.getParent() != root) {
+            dockMoveHint = text(tr("◀ ▶  przesuń   ·   OK  zapisz   ·   Wstecz  anuluj",
+                    "◀ ▶  move   ·   OK  save   ·   Back  cancel"), 21, Color.WHITE, false, 520, 690, 560, 50);
+            dockMoveHint.setGravity(Gravity.CENTER);
+            dockMoveHint.setBackground(shape(0xE0152146, 0x809FD5FF, 18));
+        }
+        dockMoveHint.setVisibility(View.VISIBLE);
+    }
+
+    private void moveDockTile(int delta) {
+        int from = dockMoveIndex, to = from + delta;
+        if (to < 0 || to >= dockPackages.size()) return;
+        java.util.Collections.swap(dockPackages, from, to);
+        swapDockViews(dockCards, from, to);
+        swapDockViews(dockGlows, from, to);
+        dockMoveIndex = to;
+        paintDockMove();
+    }
+
+    /** Swaps two dock views' positions with a short slide, keeping list order equal to screen order. */
+    private void swapDockViews(List<View> views, int from, int to) {
+        View a = views.get(from), b = views.get(to);
+        FrameLayout.LayoutParams pa = (FrameLayout.LayoutParams) a.getLayoutParams();
+        FrameLayout.LayoutParams pb = (FrameLayout.LayoutParams) b.getLayoutParams();
+        int ax = pa.leftMargin, bx = pb.leftMargin;
+        pa.leftMargin = bx;
+        pb.leftMargin = ax;
+        a.setLayoutParams(pa);
+        b.setLayoutParams(pb);
+        a.setTranslationX(ax - bx);
+        b.setTranslationX(bx - ax);
+        a.animate().translationX(0).setDuration(180).start();
+        b.animate().translationX(0).setDuration(180).start();
+        java.util.Collections.swap(views, from, to);
+    }
+
+    private void finishDockMove(boolean save) {
+        if (dockMoveIndex < 0) return;
+        String moved = dockPackages.get(dockMoveIndex);
+        if (save) saveDock(dockPackages);
+        else { dockPackages.clear(); dockPackages.addAll(dockMoveBackup); }
+        dockMoveIndex = -1;
+        dockMoveBackup = null;
+        if (dockMoveHint != null) dockMoveHint.setVisibility(View.GONE);
+        refreshDock(dockPackages.indexOf(moved));
+        Toast.makeText(this, save ? tr("Zapisano kolejność", "Order saved")
+                : tr("Kolejność bez zmian", "Order unchanged"), Toast.LENGTH_SHORT).show();
+    }
+
+    // ---------- "Your apps": first-run step and full dock editor ----------
+
+    private void showDockEditor(boolean firstRun) {
+        List<String> candidates = dockCandidates();
+        List<String> picked = new ArrayList<>(dockPackages);
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout content = popupContent();
+        popupTitle(content, tr("Twoje aplikacje", "Your apps"));
+        popupDescription(content, (firstRun ? tr("Ostatni krok. ", "Last step. ") : "")
+                + tr("Wybierz do 4 aplikacji na dole pulpitu. Numer pokazuje miejsce w docku. "
+                        + "Kolejność zmienisz później, przytrzymując OK na kafelku.",
+                "Choose up to 4 apps for the bottom of the home screen. The number shows the dock position. "
+                        + "Change the order later by holding OK on a tile."));
+        TextView status = new TextView(this);
+        status.setTextColor(night ? 0xFFFFB8BE : 0xFFA12636);
+        status.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(17));
+        HashMap<String, TextView> badges = new HashMap<>();
+        HashMap<String, FrameLayout> tiles = new HashMap<>();
+        Runnable paint = () -> {
+            for (String pkg : candidates) {
+                int position = picked.indexOf(pkg);
+                TextView badge = badges.get(pkg);
+                badge.setText(String.valueOf(position + 1));
+                badge.setVisibility(position >= 0 ? View.VISIBLE : View.INVISIBLE);
+                FrameLayout tile = tiles.get(pkg);
+                paintEditorTile(tile, tile.hasFocus(), position >= 0);
+            }
+        };
+        ScrollView scroll = new ScrollView(this);
+        scroll.setClipChildren(false);
+        LinearLayout rows = new LinearLayout(this);
+        rows.setOrientation(LinearLayout.VERTICAL);
+        rows.setClipChildren(false);
+        rows.setPadding(px(10), px(14), px(10), px(10));
+        scroll.addView(rows);
+        LinearLayout row = null;
+        View first = null;
+        for (int i = 0; i < candidates.size(); i++) {
+            String pkg = candidates.get(i);
+            if (i % 4 == 0) {
+                row = new LinearLayout(this);
+                row.setClipChildren(false);
+                LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(-1, px(132));
+                rows.addView(row, rowParams);
+            }
+            FrameLayout cell = new FrameLayout(this);
+            cell.setClipChildren(false);
+            FrameLayout tile = new FrameLayout(this);
+            tile.setFocusable(true);
+            tile.setFocusableInTouchMode(true);
+            tile.setClickable(true);
+            tile.setClipToOutline(true);
+            tile.setContentDescription(appLabel(pkg));
+            tile.setPadding(px(8), px(8), px(8), px(8));
+            Drawable art = null;
+            boolean banner = false;
+            try {
+                art = getPackageManager().getApplicationBanner(pkg);
+                banner = art != null;
+                if (art == null) art = getPackageManager().getApplicationIcon(pkg);
+            } catch (PackageManager.NameNotFoundException ignored) { }
+            if (art != null) {
+                ImageView image = new ImageView(this);
+                image.setImageDrawable(art);
+                image.setScaleType(banner ? ImageView.ScaleType.CENTER_CROP : ImageView.ScaleType.FIT_CENTER);
+                image.setClipToOutline(true);
+                image.setBackground(shape(Color.TRANSPARENT, Color.TRANSPARENT, 14));
+                tile.addView(image, new FrameLayout.LayoutParams(-1, -1));
+            }
+            if (!banner) {
+                TextView name = new TextView(this);
+                name.setText(appLabel(pkg));
+                name.setTextColor(ink);
+                name.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(15));
+                name.setGravity(Gravity.CENTER);
+                name.setSingleLine(true);
+                name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                FrameLayout.LayoutParams nameParams = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM);
+                tile.addView(name, nameParams);
+            }
+            tiles.put(pkg, tile);
+            // The tile leaves room in its cell so the number badge never gets clipped.
+            FrameLayout.LayoutParams tileParams = new FrameLayout.LayoutParams(-1, px(112));
+            tileParams.topMargin = px(14);
+            tileParams.rightMargin = px(14);
+            cell.addView(tile, tileParams);
+            TextView badge = new TextView(this);
+            badge.setTextColor(Color.WHITE);
+            badge.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(20));
+            badge.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            badge.setGravity(Gravity.CENTER);
+            badge.setBackground(shape(0xFF244574, night ? 0xFF142548 : 0xFFF5F2EA, 20, 3));
+            FrameLayout.LayoutParams badgeParams = new FrameLayout.LayoutParams(px(40), px(40), Gravity.END | Gravity.TOP);
+            // Above the focused (raised, scaled) tile, so the position number stays readable.
+            badge.setElevation(px(24));
+            badge.setTranslationZ(px(24));
+            cell.addView(badge, badgeParams);
+            badges.put(pkg, badge);
+            tile.setOnFocusChangeListener((v, focused) -> paintEditorTile(tile, focused, picked.contains(pkg)));
+            tile.setOnClickListener(v -> {
+                status.setText("");
+                if (picked.remove(pkg)) { paint.run(); return; }
+                if (picked.size() >= DOCK_SIZE) {
+                    status.setText(tr("Dock mieści 4 aplikacje. Odznacz jedną, aby wybrać inną.",
+                            "The dock holds 4 apps. Deselect one to choose another."));
+                    return;
+                }
+                picked.add(pkg);
+                paint.run();
+            });
+            LinearLayout.LayoutParams cellParams = new LinearLayout.LayoutParams(0, -1, 1);
+            if (i % 4 != 0) cellParams.leftMargin = px(16);
+            row.addView(cell, cellParams);
+            if (first == null) first = tile;
+        }
+        if (row != null) for (int i = candidates.size() % 4; i > 0 && i < 4; i++)
+            row.addView(new View(this), new LinearLayout.LayoutParams(0, -1, 1));
+        if (candidates.isEmpty()) {
+            TextView empty = new TextView(this);
+            empty.setText(tr("Nie znaleziono zainstalowanych aplikacji.", "No installed apps were found."));
+            empty.setTextColor(muted);
+            empty.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(19));
+            rows.addView(empty);
+        }
+        int rowsCount = Math.max(1, (candidates.size() + 3) / 4);
+        LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(-1, px(Math.min(420, rowsCount * 132 + 24)));
+        scrollParams.topMargin = px(8);
+        content.addView(scroll, scrollParams);
+        LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(-1, px(40));
+        content.addView(status, statusParams);
+        status.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout actions = new LinearLayout(this);
+        actions.setGravity(Gravity.RIGHT);
+        TextView cancel = setupButton(firstRun ? tr("Pomiń", "Skip") : tr("Anuluj", "Cancel"));
+        cancel.setGravity(Gravity.CENTER);
+        cancel.setOnClickListener(v -> dialog.dismiss());
+        actions.addView(cancel, new LinearLayout.LayoutParams(px(160), px(54)));
+        TextView save = setupButton(firstRun ? tr("Gotowe", "Done") : tr("Zapisz", "Save"));
+        save.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams saveParams = new LinearLayout.LayoutParams(px(160), px(54));
+        saveParams.leftMargin = px(14);
+        actions.addView(save, saveParams);
+        save.setOnClickListener(v -> {
+            if (picked.isEmpty() && !candidates.isEmpty()) {
+                status.setText(tr("Wybierz przynajmniej jedną aplikację.", "Choose at least one app."));
+                return;
+            }
+            saveDock(picked);
+            dialog.dismiss();
+            refreshDock(0);
+        });
+        content.addView(actions);
+        dialog.setContentView(content);
+        dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        showDialogWithBlur(dialog);
+        dialog.getWindow().setLayout(px(1180), -2);
+        paint.run();
+        if (first != null) first.requestFocus(); else save.requestFocus();
+    }
+
+    private void paintEditorTile(FrameLayout tile, boolean focused, boolean picked) {
+        int fill = night ? 0xFF344B72 : Color.WHITE;
+        // Night uses a light ring for picked tiles; dark navy would vanish on the dark surface.
+        int border = focused ? FOCUS_RING : picked ? (night ? 0xFFDCE8F8 : 0xFF385E8F)
+                : (night ? 0x668DA8CF : 0x99C1CCE0);
+        tile.setBackground(shape(fill, border, 18, focused || picked ? 3 : 1));
+        tile.setScaleX(focused ? 1.04f : 1f);
+        tile.setScaleY(focused ? 1.04f : 1f);
+        tile.setElevation(focused ? px(10) : 0);
     }
 
     private void addMainDrawerRow(LinearLayout rows, String[] brands, String[] packages) {
@@ -2450,14 +2844,8 @@ public final class DashboardActivity extends Activity {
         List<ResolveInfo> apps = new ArrayList<>(getPackageManager().queryIntentActivities(query, 0));
         HashSet<String> excluded = new HashSet<>();
         excluded.add(getPackageName());
-        excluded.add("com.google.android.youtube.tv");
-        excluded.add("com.netflix.ninja");
-        excluded.add("com.canal.android.canal");
-        excluded.add("com.spotify.tv.android");
-        excluded.add("org.droidtv.playtv");
-        excluded.add("org.droidtv.eum");
-        excluded.add("org.droidtv.channels");
-        excluded.add("org.droidtv.contentexplorer");
+        excluded.addAll(dockPackages);
+        excluded.addAll(HIDDEN_APP_PACKAGES);
         List<ResolveInfo> extras = new ArrayList<>();
         for (ResolveInfo info : apps) {
             String pkg = info.activityInfo.packageName;
@@ -2557,7 +2945,9 @@ public final class DashboardActivity extends Activity {
     private void openAppDrawer(int focusRow, int focusColumn) {
         if (appDrawerOpen) return;
         if (!drawerRowsLoaded) {
-            addMainDrawerRow(drawerRows, DOCK_BRANDS, DOCK_PACKAGES);
+            String[] dockLabels = new String[dockPackages.size()];
+            for (int i = 0; i < dockLabels.length; i++) dockLabels[i] = appLabel(dockPackages.get(i));
+            addMainDrawerRow(drawerRows, dockLabels, dockPackages.toArray(new String[0]));
             populateExtraApps(drawerRows);
             drawerRowsLoaded = true;
         }
@@ -2650,6 +3040,27 @@ public final class DashboardActivity extends Activity {
             suppressSaverKeyUp = false;
             return true;
         }
+        if (dockMoveIndex >= 0) {
+            // Move mode owns the remote: arrows swap, OK saves, Back cancels.
+            int key = event.getKeyCode();
+            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                resetScreensaverTimer();
+                if (key == KeyEvent.KEYCODE_DPAD_LEFT) moveDockTile(-1);
+                else if (key == KeyEvent.KEYCODE_DPAD_RIGHT) moveDockTile(1);
+                else if (key == KeyEvent.KEYCODE_DPAD_CENTER || key == KeyEvent.KEYCODE_ENTER
+                        || key == KeyEvent.KEYCODE_NUMPAD_ENTER) {
+                    if (event.getRepeatCount() == 0) { finishDockMove(true); suppressDockKeyUp = true; }
+                } else if (key == KeyEvent.KEYCODE_BACK || key == KeyEvent.KEYCODE_ESCAPE) {
+                    finishDockMove(false);
+                    suppressDockKeyUp = true;
+                }
+            }
+            return true;
+        }
+        if (event.getAction() == KeyEvent.ACTION_UP && suppressDockKeyUp) {
+            suppressDockKeyUp = false;
+            return true;
+        }
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
             if (screensaverActive) {
                 hideScreensaver();
@@ -2666,7 +3077,8 @@ public final class DashboardActivity extends Activity {
                 return true;
             }
             if (appDrawerOpen) {
-                if (!extraAppRows.isEmpty()) {
+                if (!extraAppRows.isEmpty() && !extraAppRows.get(
+                        Math.min(drawerFocusRow, extraAppRows.size() - 1)).isEmpty()) {
                     int row = Math.min(drawerFocusRow, extraAppRows.size() - 1);
                     int column = Math.min(drawerFocusColumn, extraAppRows.get(row).size() - 1);
                     View focused = extraAppRows.get(row).get(column);
@@ -2682,7 +3094,7 @@ public final class DashboardActivity extends Activity {
                     }
                     if (key == KeyEvent.KEYCODE_DPAD_UP || key == KeyEvent.KEYCODE_DPAD_DOWN) {
                         int nextRow = row + (key == KeyEvent.KEYCODE_DPAD_UP ? -1 : 1);
-                        if (nextRow < 0) {
+                        if (nextRow < 0 || nextRow < extraAppRows.size() && extraAppRows.get(nextRow).isEmpty()) {
                             closeAppDrawer();
                         } else if (nextRow < extraAppRows.size()) {
                             List<View> next = extraAppRows.get(nextRow);
