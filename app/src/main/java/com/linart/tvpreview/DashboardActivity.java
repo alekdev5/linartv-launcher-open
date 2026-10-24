@@ -2003,6 +2003,7 @@ public final class DashboardActivity extends Activity {
                 closeAppDrawer();
                 Intent start = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER);
                 start.setClassName(pkg, info.activityInfo.name);
+                start.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
                 startActivity(start);
             });
             FrameLayout.LayoutParams cardParams = new FrameLayout.LayoutParams(px(340), px(120));
