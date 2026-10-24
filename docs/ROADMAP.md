@@ -43,6 +43,13 @@ Próba techniczna: strona klubu wskazuje adres `https://ics.fixtur.es/v2/<klub>.
 - [ ] **Język:** domyślnie angielski interfejs, gdy system TV nie jest po polsku.
 - [ ] Atrybucja fixtur.es w README (interfejs pozostaje minimalistyczny, bez logotypów).
 
+## Pełne pokrycie polskich lig (do ustalenia)
+Cel: wszystkie poziomy rozgrywek w Polsce, aż po klasy A i B.
+
+- [ ] Sprawdzić, jak daleko w dół sięga katalog kalendarzeligowe.pl, i zapytać właściciela o brakujące klasy rozgrywkowe.
+- [ ] laczynaspilka.pl (PZPN) ma komplet rozgrywek, ale jego API (`competition-api-pro2.laczynaspilka.pl`) wymaga tokenu wydawanego po weryfikacji reCAPTCHA; bez niego zwraca 401. Nie obchodzimy tego zabezpieczenia — jedyna droga to oficjalna zgoda PZPN lub właściwego Wojewódzkiego ZPN.
+- [ ] Nie pobierać danych z serwisów, które zabraniają tego w `robots.txt` (np. kieleckapilka.pl).
+
 ## Później
 - Podział `DashboardActivity` na mniejsze klasy.
 
