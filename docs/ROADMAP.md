@@ -29,7 +29,7 @@ Drugie źródło terminarzy obok kalendarzeligowe.pl: [fixtur.es](https://fixtur
 - [ ] **Parser ICS:** dopasować do formatu fixtur.es (nazwy drużyn w SUMMARY, rozgrywki, kolejka, wyniki na żywo, różne strefy czasowe).
 - [ ] **Herby:** dla zagranicznych klubów inicjały (fallback), bez dołączania nowych grafik bez zgody.
 - [ ] **Język:** domyślnie angielski interfejs, gdy system TV nie jest po polsku.
-- [ ] Atrybucja fixtur.es w szczegółach meczu i w README.
+- [ ] Atrybucja fixtur.es w README (interfejs pozostaje minimalistyczny, bez logotypów).
 
 ## Później
 - Podział `DashboardActivity` na mniejsze klasy.
