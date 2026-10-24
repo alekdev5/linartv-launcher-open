@@ -355,6 +355,18 @@ public final class DashboardActivity extends Activity {
     private void restoreCalendar(CalendarFeed feed, SharedPreferences saved) {
         if (!feed.configured()) return;
         feed.updatedAt = saved.getLong(feed.key + "_calendar_updated", 0);
+        String apiCache = saved.getString(feed.key + "_calendar_matches", "");
+        if (!apiCache.isEmpty()) {
+            try {
+                JSONArray rows = new JSONArray(apiCache);
+                for (int i = 0; i < rows.length(); i++) {
+                    JSONObject row = rows.getJSONObject(i);
+                    feed.matches.add(new IcsMatchParser.Match(row.getString("home"), row.getString("away"),
+                            row.getLong("startsAt"), row.getBoolean("hasTime"), row.optInt("round", -1)));
+                }
+                return;
+            } catch (Exception e) { feed.matches.clear(); }
+        }
         String ics = saved.getString(feed.key + "_calendar_ics", "");
         if (ics.startsWith("BEGIN:VCALENDAR"))
             feed.matches = IcsMatchParser.parse(ics, feed.requiredDescription,
@@ -371,11 +383,41 @@ public final class DashboardActivity extends Activity {
     private void refreshCalendar(CalendarFeed feed) {
         if (!feed.configured()) return;
         long now = System.currentTimeMillis();
-        if (feed.loading || now - feed.updatedAt < CALENDAR_REFRESH_MS
+        if (feed.loading || (now - feed.updatedAt < CALENDAR_REFRESH_MS
+                && !upcomingMatches(feed, now).isEmpty())
                 || now - feed.attemptedAt < 30 * 60 * 1000) return;
         feed.loading = true;
         feed.attemptedAt = now;
         new Thread(() -> {
+            if ("4-liga-swietokrzyska".equals(feed.leagueSlug)
+                    || "klasa-okregowa-swietokrzyska".equals(feed.leagueSlug)) {
+                try {
+                    List<IcsMatchParser.Match> matches = LeagueCatalogClient.teamMatches(feed.url,
+                            System.currentTimeMillis() - CALENDAR_PARSE_LOOKBACK_MS);
+                    JSONArray rows = new JSONArray();
+                    for (IcsMatchParser.Match match : matches) {
+                        JSONObject row = new JSONObject();
+                        row.put("home", match.home).put("away", match.away)
+                                .put("startsAt", match.startsAt).put("hasTime", match.hasTime)
+                                .put("round", match.round);
+                        rows.put(row);
+                    }
+                    handler.post(() -> {
+                        if (feed != clubOneCalendar && feed != clubTwoCalendar) return;
+                        feed.loading = false;
+                        feed.matches = matches;
+                        feed.updatedAt = System.currentTimeMillis();
+                        feed.selected = 0;
+                        getPreferences(MODE_PRIVATE).edit().putString(feed.key + "_calendar_matches", rows.toString())
+                                .putLong(feed.key + "_calendar_updated", feed.updatedAt).apply();
+                        buildScreen();
+                        crests.refreshIfDue(clubOneCalendar.matches, clubTwoCalendar.matches, true);
+                    });
+                    return;
+                } catch (Exception e) {
+                    android.util.Log.w("LinarTV", "Team match API failed; trying ICS", e);
+                }
+            }
             String ics = null;
             HttpURLConnection connection = null;
             try {
@@ -406,6 +448,7 @@ public final class DashboardActivity extends Activity {
                     feed.updatedAt = System.currentTimeMillis();
                     feed.selected = 0;
                     getPreferences(MODE_PRIVATE).edit().putString(feed.key + "_calendar_ics", fetched)
+                            .remove(feed.key + "_calendar_matches")
                             .putLong(feed.key + "_calendar_updated", feed.updatedAt).apply();
                     buildScreen();
                     crests.refreshIfDue(clubOneCalendar.matches, clubTwoCalendar.matches, true);
@@ -1031,7 +1074,8 @@ public final class DashboardActivity extends Activity {
                     .putString(key + "_league", chosen[i].league)
                     .putString(key + "_league_slug", chosen[i].leagueSlug);
             if (!chosen[i].url.equals(i == 0 ? clubOneCalendar.url : clubTwoCalendar.url))
-                edit.remove(key + "_calendar_ics").remove(key + "_calendar_updated");
+                edit.remove(key + "_calendar_ics").remove(key + "_calendar_matches")
+                        .remove(key + "_calendar_updated");
         }
         edit.apply();
         clubOneCalendar = configuredCalendar(saved, 1);

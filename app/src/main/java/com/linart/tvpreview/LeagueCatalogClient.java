@@ -9,11 +9,15 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.text.Normalizer;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /** Current leagues and teams from the same public catalogue used by kalendarzeligowe.pl. */
 final class LeagueCatalogClient {
@@ -95,6 +99,43 @@ final class LeagueCatalogClient {
         List<Team> result = new ArrayList<>(found.values());
         result.sort(Comparator.comparing(team -> team.name.toLowerCase(new Locale("pl", "PL"))));
         return result;
+    }
+
+    /** The site's ICS feed omits fixtures whose kickoff time is still provisional. */
+    static List<IcsMatchParser.Match> teamMatches(String calendarUrl, long fromMillis) throws Exception {
+        Matcher id = Pattern.compile("-(\\d+)/calendar\\.ics(?:\\?.*)?$").matcher(calendarUrl);
+        if (!calendarUrl.startsWith("https://kalendarzeligowe.pl/") || !id.find())
+            throw new IllegalArgumentException("Unknown team calendar URL");
+        int teamId = Integer.parseInt(id.group(1));
+        List<IcsMatchParser.Match> matches = new ArrayList<>();
+        for (int page = 1; page <= 10; page++) {
+            JSONObject response = readObject("matches?teamId=" + teamId + "&pageSize=100&page=" + page);
+            JSONArray data = response.optJSONArray("data");
+            if (data == null) throw new IllegalStateException("Missing match data");
+            for (int i = 0; i < data.length(); i++) {
+                JSONObject item = data.getJSONObject(i);
+                if ("CANCELLED".equalsIgnoreCase(item.optString("status"))) continue;
+                JSONObject home = item.optJSONObject("home");
+                JSONObject away = item.optJSONObject("away");
+                if (home == null || away == null
+                        || (home.optInt("id") != teamId && away.optInt("id") != teamId)) continue;
+                String date = item.optString("matchDate", "");
+                if (date.isEmpty()) continue;
+                Instant kickoff = Instant.parse(date);
+                boolean hasTime = !item.optBoolean("isDateTbd", false);
+                long startsAt = hasTime ? kickoff.toEpochMilli()
+                        : kickoff.atZone(ZoneId.of("Europe/Warsaw")).toLocalDate()
+                                .atStartOfDay(ZoneId.of("Europe/Warsaw")).toInstant().toEpochMilli();
+                if (startsAt < fromMillis) continue;
+                JSONObject round = item.optJSONObject("round");
+                matches.add(new IcsMatchParser.Match(home.optString("name"), away.optString("name"),
+                        startsAt, hasTime, round == null ? -1 : round.optInt("roundNumber", -1)));
+            }
+            JSONObject meta = response.optJSONObject("meta");
+            if (meta == null || page >= meta.optInt("pageCount", page)) break;
+        }
+        matches.sort(Comparator.comparingLong(match -> match.startsAt));
+        return matches;
     }
 
     private static void add(HashMap<Integer, Team> teams, JSONObject item) {
