@@ -26,13 +26,13 @@ Użytkownik sam decyduje, które aplikacje są widoczne na pierwszym ekranie i w
 ## 0.3.0 — mecze z całego świata (fixtur.es)
 Drugie źródło terminarzy obok kalendarzeligowe.pl: [fixtur.es](https://fixtur.es/) (De Agendamakers B.V.) — darmowe kalendarze ICS dla drużyn z lig na całym świecie. Otwiera LinarTV na rynki poza Polską.
 
-Uzgodniona reguła wyboru źródła: **Polska → API kalendarzeligowe.pl; Świat → kalendarze ICS fixtur.es**. Kreator zaczyna się od wyboru „Polska / Świat”; dla Polski pokazuje ligę i klub. Część „Świat” zostanie uruchomiona po uzgodnieniu warunków z fixtur.es. Można dodać jeden lub dwa kluby.
+Uzgodniona reguła wyboru źródła: **Polska → API kalendarzeligowe.pl; Świat → kalendarze ICS fixtur.es**. Kreator zaczyna się od wyboru „Polska / Świat”; dla Polski pokazuje ligę i klub. W części „Świat” działa testowe dodanie linku ICS skopiowanego przez użytkownika (z przykładem Arsenalu). Automatyczny katalog krajów, lig i klubów pozostaje do uzgodnienia z fixtur.es. Można dodać jeden lub dwa kluby.
 
 Stan rozpoznania (24.10.2026): w polskiej części serwisu są Ekstraklasa i I liga; niższych lig nie znaleziono. Kalendarz klubowy obejmuje też puchary i sparingi. Część odległych terminów ma godzinę 01:00/02:00 — wygląda na datę bez potwierdzonej godziny, więc aplikacja nie powinna pokazywać jej jako pewnej godziny meczu. Właściciel projektu wysłał już pytanie do operatora o wykorzystanie źródła.
 
 Próba techniczna: strona klubu wskazuje adres `https://ics.fixtur.es/v2/<klub>.ics`; przykładowy kalendarz Arsenalu zawiera także historyczne wydarzenia i ma około 200 kB. Parser musi filtrować daty, rozpoznawać strefy czasowe i oddzielać dopiski z wynikiem/rozgrywkami od nazwy rywala. Nie wyprowadzać adresów ICS wyłącznie z nazwy klubu — korzystać z linku podanego przez dostawcę.
 
-- [ ] **Etap 1 — wklejany link (bez katalogu):** w kreatorze klubów opcja „Dodaj kalendarz z fixtur.es”; użytkownik kopiuje na fixtur.es link do kalendarza swojej drużyny i wkleja go w LinarTV (lub skanuje kod QR i wkleja z telefonu). Aplikacja działa jak zwykły klient kalendarza.
+- [x] **Etap 1 — wklejany link (bez katalogu):** w kreatorze klubów użytkownik wpisuje nazwę drużyny i link ICS z fixtur.es; domyślny przykład to Arsenal. Dodawanie linku z telefonu przez QR pozostaje na później.
 - [x] **Kontakt:** wysłano pytanie do operatora o wykorzystanie źródła; przed integracją katalogu potwierdzić warunki, stabilny format adresów ICS i dopuszczalną częstotliwość odświeżania.
 - [ ] **Etap 2 — katalog (tylko po zgodzie):** wybór kraj → liga → drużyna lub wyszukiwanie nazwy w kreatorze.
 - [ ] **Kierowanie źródła:** w kreatorze nie pokazywać użytkownikowi technicznego wyboru dostawcy; Polska korzysta z obecnego katalogu, inne kraje z zatwierdzonego katalogu fixtur.es. Zapisać identyfikator dostawcy przy każdym klubie.

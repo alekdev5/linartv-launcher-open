@@ -57,7 +57,9 @@ final class IcsMatchParser {
             int separator = summary.indexOf(" - ");
             if (separator < 1) return;
             String home = summary.substring(0, separator).trim();
-            String away = summary.substring(separator + 3).trim();
+            String away = summary.substring(separator + 3).trim()
+                    .replaceFirst("\\s+\\[[^]]+\\](?:\\s+\\(\\d+[-:]\\d+\\))?$", "")
+                    .replaceFirst("\\s+\\(\\d+[-:]\\d+\\)$", "");
             String value = event.get("DTSTART");
             if (value == null) return;
             String key = event.getOrDefault("DTSTART_KEY", "");

@@ -390,8 +390,10 @@ public final class DashboardActivity extends Activity {
         feed.attemptedAt = now;
         new Thread(() -> {
             try {
-                    List<IcsMatchParser.Match> matches = LeagueCatalogClient.teamMatches(feed.url,
-                            System.currentTimeMillis() - CALENDAR_PARSE_LOOKBACK_MS);
+                    long from = System.currentTimeMillis() - CALENDAR_PARSE_LOOKBACK_MS;
+                    List<IcsMatchParser.Match> matches = feed.url.startsWith("https://ics.fixtur.es/")
+                            ? FixturIcsClient.teamMatches(feed.url, from)
+                            : LeagueCatalogClient.teamMatches(feed.url, from);
                     JSONArray rows = new JSONArray();
                     for (IcsMatchParser.Match match : matches) {
                         JSONObject row = new JSONObject();
@@ -413,7 +415,7 @@ public final class DashboardActivity extends Activity {
                         crests.refreshIfDue(clubOneCalendar.matches, clubTwoCalendar.matches, true);
                     });
             } catch (Exception e) {
-                android.util.Log.w("LinarTV", "Team match API failed; keeping cached matches", e);
+                android.util.Log.w("LinarTV", "Team calendar refresh failed; keeping cached matches", e);
                 handler.post(() -> {
                     if (feed != clubOneCalendar && feed != clubTwoCalendar) return;
                     feed.loading = false;
@@ -981,9 +983,76 @@ public final class DashboardActivity extends Activity {
         showChoiceDialog(tr("Wybierz region", "Choose a region"),
                 new String[]{tr("Polska", "Poland"), tr("Świat", "World")}, index -> {
                     if (index == 0) chooseLeague(slot, draft, button, setup, status);
-                    else status.setText(tr("Kalendarze światowe dodamy po uzyskaniu zgody fixtur.es.",
-                            "World fixtures will be added after fixtur.es grants permission."));
+                    else showWorldCalendarSetup(slot, draft, button, setup, status);
                 });
+    }
+
+    private void showWorldCalendarSetup(int slot, CalendarFeed[] draft, TextView button,
+                                        Dialog setup, TextView status) {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout content = popupContent();
+        popupTitle(content, tr("Klub ze świata", "World club"));
+        popupDescription(content, tr("Na próbę wpisz nazwę klubu i link ICS skopiowany z fixtur.es. Przykład: Arsenal.",
+                "For this trial, enter a club name and its ICS link copied from fixtur.es. Example: Arsenal."));
+        EditText club = new EditText(this);
+        club.setSingleLine(true);
+        club.setTextColor(ink);
+        club.setHintTextColor(muted);
+        club.setHint(tr("Nazwa klubu", "Club name"));
+        club.setText("Arsenal");
+        club.setPadding(px(20), 0, px(20), 0);
+        club.setBackground(shape(night ? 0xFF2B4268 : 0xFFE3E9F0,
+                night ? 0xFF7899C3 : 0xFFB7C4D5, 15));
+        content.addView(club, new LinearLayout.LayoutParams(-1, px(66)));
+        EditText url = new EditText(this);
+        url.setSingleLine(true);
+        url.setTextColor(ink);
+        url.setHintTextColor(muted);
+        url.setHint("https://ics.fixtur.es/v2/arsenal.ics");
+        url.setText("https://ics.fixtur.es/v2/arsenal.ics");
+        url.setPadding(px(20), 0, px(20), 0);
+        url.setBackground(shape(night ? 0xFF2B4268 : 0xFFE3E9F0,
+                night ? 0xFF7899C3 : 0xFFB7C4D5, 15));
+        LinearLayout.LayoutParams urlParams = new LinearLayout.LayoutParams(-1, px(66));
+        urlParams.topMargin = px(12);
+        content.addView(url, urlParams);
+        TextView message = popupDescription(content, "");
+        LinearLayout actions = new LinearLayout(this);
+        actions.setGravity(Gravity.END);
+        TextView close = setupButton(tr("Zamknij", "Close"));
+        close.setOnClickListener(v -> dialog.dismiss());
+        actions.addView(close, new LinearLayout.LayoutParams(px(150), px(58)));
+        TextView select = setupButton(tr("Wybierz", "Select"));
+        LinearLayout.LayoutParams selectParams = new LinearLayout.LayoutParams(px(150), px(58));
+        selectParams.leftMargin = px(14);
+        actions.addView(select, selectParams);
+        content.addView(actions);
+        select.setOnClickListener(v -> {
+            String name = club.getText().toString().trim();
+            String address = url.getText().toString().trim();
+            if (name.isEmpty() || !address.matches("https://ics\\.fixtur\\.es/v2/[a-zA-Z0-9_-]+\\.ics")) {
+                message.setText(tr("Wpisz klub i poprawny link ICS z fixtur.es.",
+                        "Enter a club and a valid fixtur.es ICS link."));
+                return;
+            }
+            int other = 1 - slot;
+            if (draft[other].configured() && draft[other].url.equals(address)) {
+                message.setText(tr("Ten klub jest już wybrany.", "This club is already selected."));
+                return;
+            }
+            draft[slot] = new CalendarFeed("club" + (slot + 1), address, name,
+                    "fixtur.es", "fixtur.es");
+            button.setText((slot + 1) + ". " + name + " · fixtur.es");
+            status.setText("");
+            dialog.dismiss();
+            if (setup.isShowing()) button.requestFocus();
+        });
+        dialog.setContentView(content);
+        dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        showDialogWithBlur(dialog);
+        dialog.getWindow().setLayout(px(840), -2);
+        club.requestFocus();
     }
 
     private void chooseLeague(int slot, CalendarFeed[] draft, TextView button,
