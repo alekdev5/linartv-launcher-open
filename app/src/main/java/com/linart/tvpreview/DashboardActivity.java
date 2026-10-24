@@ -167,11 +167,13 @@ public final class DashboardActivity extends Activity {
     private CalendarFeed clubTwoCalendar;
     private boolean setupShown;
     private PhotoUploadServer photoUploadServer;
-    private static final long SCREENSAVER_IDLE_MS = 5 * 60_000L;
     private static final long SCREENSAVER_SLIDE_MS = 30_000L;
     private boolean popupOpen;
+    private boolean rebuildAfterPopup;
     private int popupDepth;
     private final List<Dialog> visibleDialogs = new ArrayList<>();
+    private ImageView popupBlurImage;
+    private Bitmap popupBlurBitmap;
     private boolean english;
     private boolean fahrenheit;
     private Locale displayLocale() { return english ? EN : PL; }
@@ -205,7 +207,7 @@ public final class DashboardActivity extends Activity {
             clock.setText(new SimpleDateFormat("HH:mm", PL).format(now));
             String formatted = new SimpleDateFormat("EEEE, d MMMM", displayLocale()).format(now);
             date.setText(Character.toUpperCase(formatted.charAt(0)) + formatted.substring(1));
-            if (night != isNight()) { buildScreen(); return; }
+            if (!popupOpen && night != isNight()) { buildScreen(); return; }
             if (!popupOpen && (matchCardNeedsUpdate(clubOneCalendar, now.getTime())
                     || matchCardNeedsUpdate(clubTwoCalendar, now.getTime()))) {
                 buildScreen();
@@ -295,8 +297,11 @@ public final class DashboardActivity extends Activity {
     }
 
     private boolean isNight() {
-        int hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
-        return hour >= 20 || hour < 8;
+        SharedPreferences prefs = getPreferences(MODE_PRIVATE);
+        Calendar now = Calendar.getInstance();
+        return LauncherTiming.isNight(prefs.getString("appearance_mode", "auto"),
+                now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE),
+                prefs.getInt("day_start_minute", 480), prefs.getInt("night_start_minute", 1200));
     }
 
     private void refreshWeather() {
@@ -334,7 +339,7 @@ public final class DashboardActivity extends Activity {
     private String currentWeatherTime() {
         JSONObject current = currentWeather();
         if (current == null || current.optLong("time") <= 0) return tr("brak danych", "no data");
-        SimpleDateFormat format = new SimpleDateFormat(english ? "d MMM HH:mm" : "d.MM HH:mm", displayLocale());
+        SimpleDateFormat format = new SimpleDateFormat("dd.MM.yyyy, HH:mm", displayLocale());
         format.setTimeZone(forecastZone());
         return format.format(new Date(current.optLong("time")));
     }
@@ -544,6 +549,8 @@ public final class DashboardActivity extends Activity {
 
     private void buildScreen() {
         if (isFinishing() || isDestroyed()) return;
+        // Keep nested dialogs and their captured backdrop attached to the same dashboard.
+        if (popupOpen) { rebuildAfterPopup = true; return; }
         boolean restoreScreensaver = screensaverActive;
         if (restoreScreensaver) hideScreensaver();
         boolean restoreDrawer = appDrawerOpen;
@@ -590,12 +597,9 @@ public final class DashboardActivity extends Activity {
         clock = text("", 144, Color.WHITE, false, 60, 26, 590, 161);
         date = text("", 37, Color.WHITE, false, 62, 189, 610, 55);
 
-        circleAction(R.drawable.ic_toolbar_television, tr("Oglądaj telewizję", "Watch TV"), 1238,
+        circleAction(R.drawable.ic_toolbar_television, tr("Oglądaj telewizję", "Watch TV"), 1338,
                 () -> launch("org.droidtv.playtv"));
-        circleAction(R.drawable.ic_toolbar_cleanup, tr("Zamknij aplikacje w tle", "Close background apps"), 1138,
-                this::closeBackgroundApps);
-        circleAction(R.drawable.ic_toolbar_sources, tr("Źródła", "Inputs"), 1338, this::showSources);
-        circleAction(R.drawable.ic_toolbar_gallery, tr("Galeria tapet", "Wallpaper gallery"), 1438, this::showWallpaperGallery);
+        circleAction(R.drawable.ic_toolbar_sources, tr("Źródła", "Inputs"), 1438, this::showSources);
         circleAction(R.drawable.ic_toolbar_settings, tr("Ustawienia", "Settings"), 1538,
                 this::showPublicSettings);
 
@@ -642,18 +646,347 @@ public final class DashboardActivity extends Activity {
     }
 
     private void showPublicSettings() {
-        showChoiceDialog(tr("Ustawienia LinarTV ", "LinarTV settings ") + appVersion(),
-                new String[]{tr("Wybierz kluby", "Choose clubs"),
-                        tr("Miasto pogody: ", "Weather city: ") + cityName,
-                        tr("Język: ", "Language: ") + (english ? "English" : "Polski"),
-                        tr("Temperatura: ", "Temperature: ") + (fahrenheit ? "°F" : "°C"),
-                        tr("Ustawienia systemu TV", "TV system settings")}, which -> {
-                    if (which == 0) showTeamSetup();
-                    else if (which == 1) showCitySetup();
-                    else if (which == 2) showLanguageSetup();
-                    else if (which == 3) showTemperatureUnitSetup();
-                    else openSettings(Settings.ACTION_SETTINGS);
-                });
+        showPublicSettings(false);
+    }
+
+    private Dialog publicSettingsDialog;
+
+    private void showPublicSettings(boolean focusLanguage) {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        publicSettingsDialog = dialog;
+        renderPublicSettings(dialog, focusLanguage);
+    }
+
+    private void renderPublicSettings(Dialog dialog, boolean focusLanguage) {
+        LinearLayout content = popupContent();
+        content.setClipChildren(false);
+        content.setClipToPadding(false);
+        GradientDrawable sideSurface = new GradientDrawable();
+        sideSurface.setColor(night ? 0xFF142548 : 0xFFF5F2EA);
+        sideSurface.setCornerRadii(new float[]{px(26), px(26), 0, 0, 0, 0, px(26), px(26)});
+        content.setBackground(sideSurface);
+        popupTitle(content, tr("Ustawienia", "Settings"));
+        View cleanup = settingsTile(tr("Zamknij aplikacje", "Close apps"),
+                R.drawable.ic_toolbar_cleanup, this::closeBackgroundApps);
+        settingsFocusable(cleanup).setContentDescription(
+                tr("Zamknij aplikacje działające w tle", "Close background apps"));
+        View wallpapers = settingsTile(tr("Tapety", "Wallpapers"), R.drawable.ic_toolbar_gallery,
+                this::showWallpaperGallery);
+        View screensaver = settingsTile(tr("Wygaszacz", "Screensaver"),
+                R.drawable.ic_settings_screensaver, this::showScreensaverSettings);
+        View appearance = settingsTile(tr("Wygląd launchera", "Launcher appearance"),
+                R.drawable.ic_settings_appearance, this::showAppearanceSettings);
+        View weather = settingsTile(tr("Pogoda", "Weather"), R.drawable.ic_weather_thermometer,
+                this::showWeatherSettings);
+        View calendars = settingsTile(tr("Kalendarze", "Calendars"),
+                R.drawable.ic_settings_calendar, this::showCalendarSettings);
+        LinearLayout grid = new LinearLayout(this);
+        grid.setOrientation(LinearLayout.VERTICAL);
+        grid.setClipChildren(false);
+        grid.setClipToPadding(false);
+        content.addView(grid, new LinearLayout.LayoutParams(-1, 0, 1));
+        addSettingsRow(grid, cleanup, wallpapers);
+        addSettingsRow(grid, screensaver, appearance);
+        addSettingsRow(grid, weather, calendars);
+        linkSettingsGrid(cleanup, wallpapers, screensaver, appearance, weather, calendars);
+
+
+        // System values belong only to this overview, never to the submenus.
+        ActivityManager manager = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
+        ActivityManager.MemoryInfo memory = new ActivityManager.MemoryInfo();
+        if (manager != null) manager.getMemoryInfo(memory);
+        addSystemMeter(content, "RAM", memory.availMem, memory.totalMem);
+        android.os.StatFs storage = new android.os.StatFs(getFilesDir().getAbsolutePath());
+        addSystemMeter(content, tr("Pamięć", "Storage"), storage.getAvailableBytes(), storage.getTotalBytes());
+        TextView system = setupButton(tr("Ustawienia Android TV", "Android TV settings"));
+        system.setGravity(Gravity.CENTER);
+        system.setOnClickListener(v -> openSettings(Settings.ACTION_SETTINGS));
+        addSettingsControl(content, system, 50);
+        LinearLayout footer = new LinearLayout(this);
+        TextView language = setupButton(tr("Język", "Language"));
+        language.setGravity(Gravity.CENTER);
+        language.setOnClickListener(v -> showLanguageSetup());
+        TextView about = setupButton(tr("O aplikacji", "About"));
+        about.setGravity(Gravity.CENTER);
+        about.setOnClickListener(v -> showMessageDialog("LinarTV " + appVersion(),
+                tr("Launcher dla Android TV", "Launcher for Android TV")));
+        footer.addView(language, new LinearLayout.LayoutParams(0, px(46), 1));
+        LinearLayout.LayoutParams aboutParams = new LinearLayout.LayoutParams(0, px(46), 1);
+        aboutParams.leftMargin = px(12);
+        footer.addView(about, aboutParams);
+        addSettingsControl(content, footer, 46);
+        dialog.setContentView(content, new ViewGroup.LayoutParams(-1, -1));
+        dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        dialog.getWindow().getDecorView().setPadding(0, 0, 0, 0);
+        dialog.getWindow().getDecorView().setSystemUiVisibility(root.getSystemUiVisibility());
+        dialog.getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        if (!dialog.isShowing()) showDialogWithBlur(dialog);
+        alignSidePanel(dialog);
+        View first = content.findViewById(settingsFirstTileId);
+        if (focusLanguage) language.requestFocus();
+        else if (first != null) first.requestFocus();
+    }
+
+    private void alignSidePanel(Dialog dialog) {
+        Window window = dialog.getWindow();
+        // This is a persistent side panel, not a floating popup: it is flush with
+        // the right, top and bottom edges of the launcher.
+        window.setLayout(px(520), -1);
+        window.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        android.view.WindowManager.LayoutParams attrs = window.getAttributes();
+        attrs.x = 0;
+        attrs.y = 0;
+        attrs.horizontalMargin = 0;
+        attrs.verticalMargin = 0;
+        window.setAttributes(attrs);
+    }
+
+    private int settingsFirstTileId;
+
+    private View settingsTile(String label, int icon, Runnable action) {
+        FrameLayout wrap = new FrameLayout(this);
+        wrap.setClipChildren(false);
+        wrap.setClipToPadding(false);
+        View glow = new View(this);
+        glow.setBackground(new AppGlowDrawable(20, false));
+        glow.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        glow.setAlpha(0f);
+        FrameLayout.LayoutParams glowParams = new FrameLayout.LayoutParams(-1, -1);
+        glowParams.setMargins(-px(24), -px(24), -px(24), -px(24));
+        wrap.addView(glow, glowParams);
+        LinearLayout tile = new LinearLayout(this);
+        tile.setId(View.generateViewId());
+        if (icon == R.drawable.ic_toolbar_cleanup) settingsFirstTileId = tile.getId();
+        tile.setOrientation(LinearLayout.VERTICAL);
+        tile.setPadding(px(16), px(12), px(16), px(12));
+        tile.setGravity(Gravity.CENTER_VERTICAL);
+        tile.setFocusable(true);
+        tile.setFocusableInTouchMode(true);
+        tile.setClickable(true);
+        tile.setContentDescription(label);
+        ImageView glyph = new ImageView(this);
+        glyph.setImageResource(icon);
+        glyph.setColorFilter(ink);
+        tile.addView(glyph, new LinearLayout.LayoutParams(px(54), px(54)));
+        TextView name = new TextView(this);
+        name.setText(label);
+        name.setTextColor(ink);
+        name.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(19));
+        name.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        LinearLayout.LayoutParams nameParams = new LinearLayout.LayoutParams(-1, -2);
+        nameParams.topMargin = px(12);
+        tile.addView(name, nameParams);
+        int normal = night ? 0xFF344B72 : Color.WHITE;
+        tile.setBackground(shape(normal, Color.TRANSPARENT, 20));
+        tile.setOnFocusChangeListener((v, focused) -> {
+            showTileGlow(glow, focused);
+            int color = focused ? (night ? 0xFF152849 : Color.WHITE) : ink;
+            tile.setBackground(shape(focused ? (night ? 0xFFF0F6FF : 0xFF244574) : normal,
+                    Color.TRANSPARENT, 20));
+            name.setTextColor(color);
+            glyph.setColorFilter(color);
+        });
+        tile.setOnClickListener(v -> action.run());
+        wrap.addView(tile, new FrameLayout.LayoutParams(-1, -1));
+        return wrap;
+    }
+
+    private void addSettingsRow(LinearLayout content, View first, View second) {
+        LinearLayout row = new LinearLayout(this);
+        row.setClipChildren(false);
+        row.setClipToPadding(false);
+        row.addView(first, new LinearLayout.LayoutParams(0, -1, 1));
+        LinearLayout.LayoutParams next = new LinearLayout.LayoutParams(0, -1, 1);
+        next.leftMargin = px(14);
+        row.addView(second, next);
+        LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(-1, 0, 1);
+        rowParams.topMargin = px(14);
+        content.addView(row, rowParams);
+    }
+
+    private void linkSettingsGrid(View first, View second, View third, View fourth, View fifth, View sixth) {
+        View a = settingsFocusable(first), b = settingsFocusable(second), c = settingsFocusable(third);
+        View d = settingsFocusable(fourth), e = settingsFocusable(fifth), f = settingsFocusable(sixth);
+        a.setNextFocusRightId(b.getId()); a.setNextFocusDownId(c.getId());
+        b.setNextFocusLeftId(a.getId()); b.setNextFocusDownId(d.getId());
+        c.setNextFocusUpId(a.getId()); c.setNextFocusRightId(d.getId()); c.setNextFocusDownId(e.getId());
+        d.setNextFocusUpId(b.getId()); d.setNextFocusLeftId(c.getId()); d.setNextFocusDownId(f.getId());
+        e.setNextFocusUpId(c.getId()); e.setNextFocusRightId(f.getId());
+        f.setNextFocusUpId(d.getId()); f.setNextFocusLeftId(e.getId());
+    }
+
+    private View settingsFocusable(View wrapper) {
+        return ((ViewGroup) wrapper).getChildAt(1);
+    }
+
+    private void addSettingsControl(LinearLayout content, View view, int height) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, px(height));
+        params.topMargin = px(12);
+        content.addView(view, params);
+    }
+
+    private void addSystemMeter(LinearLayout content, String label, long free, long total) {
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        TextView name = new TextView(this);
+        name.setText(label);
+        name.setTextColor(muted);
+        name.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(16));
+        row.addView(name, new LinearLayout.LayoutParams(px(70), -2));
+        android.widget.ProgressBar meter = new android.widget.ProgressBar(this, null,
+                android.R.attr.progressBarStyleHorizontal);
+        meter.setProgress(total > 0 ? (int) ((total - free) * 100 / total) : 0);
+        row.addView(meter, new LinearLayout.LayoutParams(0, px(10), 1));
+        TextView value = new TextView(this);
+        value.setText(android.text.format.Formatter.formatShortFileSize(this, free)
+                + tr(" wolne", " free"));
+        value.setTextColor(ink);
+        value.setGravity(Gravity.RIGHT);
+        value.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(15));
+        row.addView(value, new LinearLayout.LayoutParams(px(145), -2));
+        addSettingsControl(content, row, 28);
+    }
+
+    private void showWeatherSettings() {
+        showChoiceDialog(tr("Pogoda", "Weather"), new String[]{
+                tr("Miasto: ", "City: ") + cityName,
+                tr("Temperatura: ", "Temperature: ") + (fahrenheit ? "°F" : "°C")},
+                which -> { if (which == 0) showCitySetup(); else showTemperatureUnitSetup(); });
+    }
+
+    private void showCalendarSettings() {
+        showChoiceDialog(tr("Kalendarze", "Calendars"), new String[]{
+                tr("Wybierz kluby", "Choose clubs"), tr("Odśwież teraz", "Refresh now")}, which -> {
+            if (which == 0) { showTeamSetup(); return; }
+            for (CalendarFeed feed : new CalendarFeed[]{clubOneCalendar, clubTwoCalendar}) {
+                if (feed.loading) continue;
+                feed.updatedAt = 0;
+                feed.attemptedAt = 0;
+                refreshCalendar(feed);
+            }
+            Toast.makeText(this, tr("Rozpoczęto odświeżanie terminarzy", "Refreshing fixtures"), Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    private void showScreensaverSettings() {
+        showChoiceDialog(tr("Wygaszacz", "Screensaver"), new String[]{
+                tr("Wyłączony", "Off"), tr("Po 2 minutach", "After 2 minutes"),
+                tr("Po 5 minutach", "After 5 minutes"), tr("Po 10 minutach", "After 10 minutes"),
+                tr("Po 15 minutach", "After 15 minutes"), tr("Własny czas…", "Custom time…")}, which -> {
+            if (which == 5) {
+                showNumberSetting(tr("Czas bezczynności (minuty)", "Idle time (minutes)"),
+                        getPreferences(MODE_PRIVATE).getInt("screensaver_minutes", 5), 1, 1440,
+                        value -> saveScreensaverMinutes(value));
+            } else saveScreensaverMinutes(new int[]{0, 2, 5, 10, 15}[which]);
+        });
+    }
+
+    private void saveScreensaverMinutes(int minutes) {
+        getPreferences(MODE_PRIVATE).edit().putInt("screensaver_minutes", minutes).apply();
+        resetScreensaverTimer();
+    }
+
+    private void showAppearanceSettings() {
+        showChoiceDialog(tr("Wygląd launchera", "Launcher appearance"), new String[]{
+                tr("Automatycznie", "Automatic"), tr("Zawsze jasny", "Always light"),
+                tr("Zawsze ciemny", "Always dark"), tr("Własne godziny", "Custom schedule")}, which -> {
+            if (which == 3) { showAppearanceSchedule(); return; }
+            getPreferences(MODE_PRIVATE).edit().putString("appearance_mode", new String[]{"auto", "light", "dark"}[which]).apply();
+            buildScreen();
+        });
+    }
+
+    private void showAppearanceSchedule() {
+        SharedPreferences prefs = getPreferences(MODE_PRIVATE);
+        int day = prefs.getInt("day_start_minute", 480), dark = prefs.getInt("night_start_minute", 1200);
+        String[] labels = {tr("Dzień od ", "Day from ") + clockMinutes(day),
+                tr("Noc od ", "Night from ") + clockMinutes(dark)};
+        showChoiceDialog(tr("Własne godziny", "Custom schedule"), labels, which -> {
+            int current = which == 0 ? day : dark;
+            showClockSetting(labels[which], current, selected -> {
+                int other = prefs.getInt(which == 0 ? "night_start_minute" : "day_start_minute", which == 0 ? 1200 : 480);
+                if (selected == other) {
+                    showMessageDialog(tr("Godziny muszą być różne", "Times must differ"),
+                            tr("Ustaw różne godziny początku dnia i nocy.", "Choose different day and night start times."));
+                    return;
+                }
+                prefs.edit().putInt(which == 0 ? "day_start_minute" : "night_start_minute", selected)
+                        .putString("appearance_mode", "auto").apply();
+                buildScreen();
+            });
+        });
+    }
+
+    private void showClockSetting(String title, int current, java.util.function.IntConsumer onSave) {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout content = popupContent();
+        popupTitle(content, title);
+        popupDescription(content, tr("Wpisz godzinę w formacie HH:mm", "Enter a time in HH:mm format"));
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setInputType(android.text.InputType.TYPE_CLASS_DATETIME | android.text.InputType.TYPE_DATETIME_VARIATION_TIME);
+        input.setTextColor(ink);
+        input.setText(clockMinutes(current));
+        addSettingsControl(content, input, 60);
+        TextView save = setupButton(tr("Zapisz", "Save"));
+        save.setGravity(Gravity.CENTER);
+        save.setOnClickListener(v -> {
+            String value = input.getText().toString().trim();
+            if (!value.matches("([01][0-9]|2[0-3]):[0-5][0-9]")) {
+                input.setError(tr("Wpisz poprawną godzinę HH:mm", "Enter a valid HH:mm time"));
+                return;
+            }
+            int minute = Integer.parseInt(value.substring(0, 2)) * 60 + Integer.parseInt(value.substring(3));
+            dialog.dismiss();
+            onSave.accept(minute);
+        });
+        addSettingsControl(content, save, 54);
+        dialog.setContentView(content);
+        dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        showDialogWithBlur(dialog);
+        dialog.getWindow().setLayout(px(560), -2);
+        input.requestFocus();
+        input.selectAll();
+    }
+
+    private String clockMinutes(int minute) {
+        return String.format(Locale.ROOT, "%02d:%02d", minute / 60, minute % 60);
+    }
+
+    private void showNumberSetting(String title, int current, int min, int max,
+                                   java.util.function.IntConsumer onSave) {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout content = popupContent();
+        popupTitle(content, title);
+        EditText input = new EditText(this);
+        input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        input.setSingleLine(true);
+        input.setTextColor(ink);
+        input.setText(String.valueOf(Math.max(min, current)));
+        addSettingsControl(content, input, 60);
+        TextView save = setupButton(tr("Zapisz", "Save"));
+        save.setGravity(Gravity.CENTER);
+        save.setOnClickListener(v -> {
+            int value;
+            try { value = Integer.parseInt(input.getText().toString().trim()); }
+            catch (NumberFormatException e) { value = -1; }
+            if (value < min || value > max) {
+                input.setError(tr("Wpisz liczbę od ", "Enter a number from ") + min + "–" + max);
+                return;
+            }
+            dialog.dismiss();
+            onSave.accept(value);
+        });
+        addSettingsControl(content, save, 54);
+        dialog.setContentView(content);
+        dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        showDialogWithBlur(dialog);
+        dialog.getWindow().setLayout(px(560), -2);
+        input.requestFocus();
+        input.selectAll();
     }
 
     private void showTemperatureUnitSetup() {
@@ -699,9 +1032,12 @@ public final class DashboardActivity extends Activity {
     private void showLanguageSetup() {
         showChoiceDialog(tr("Język", "Language"), new String[]{"Polski", "English"}, which -> {
             boolean selectedEnglish = which == 1;
-            if (english == selectedEnglish) return;
             english = selectedEnglish;
             getPreferences(MODE_PRIVATE).edit().putString("language", english ? "en" : "pl").apply();
+            // Update the still-open overview in place. Dialog dismiss listeners
+            // can run after this callback; do not depend on their ordering.
+            if (publicSettingsDialog != null && publicSettingsDialog.isShowing())
+                renderPublicSettings(publicSettingsDialog, true);
             buildScreen();
         });
     }
@@ -1537,10 +1873,29 @@ public final class DashboardActivity extends Activity {
         content.setPadding(px(36), px(24), px(36), px(28));
         content.setBackground(shape(night ? 0xFF142548 : 0xFFF5F2EA,
                 night ? 0xFF899BC6 : 0xFFB7C4D5, 26, 1));
-        detailLine(content, cityName + tr("  ·  szczegóły pogody", "  ·  weather details"), 31, true, detailText);
-        detailLine(content, tr("Aktualne warunki  ·  ", "Current conditions  ·  ")
-                + currentWeatherTime(), 18, false, detailMuted);
-        detailLine(content, tr("Prognoza na 7 dni · Open-Meteo", "7-day forecast · Open-Meteo"), 24, true, detailText);
+        LinearLayout header = new LinearLayout(this);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        TextView title = new TextView(this);
+        title.setText(tr("Szczegóły pogody - ", "Weather details - ") + cityName);
+        title.setTextColor(detailText);
+        title.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(31));
+        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        title.setSingleLine(true);
+        title.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        header.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
+        TextView updated = new TextView(this);
+        updated.setText(currentWeatherTime());
+        updated.setTextColor(detailMuted);
+        updated.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(18));
+        updated.setGravity(Gravity.RIGHT);
+        updated.setSingleLine(true);
+        LinearLayout.LayoutParams updatedParams = new LinearLayout.LayoutParams(-2, -2);
+        updatedParams.leftMargin = px(24);
+        header.addView(updated, updatedParams);
+        LinearLayout.LayoutParams headerParams = new LinearLayout.LayoutParams(-1, -2);
+        headerParams.bottomMargin = px(16);
+        content.addView(header, headerParams);
+        detailLine(content, tr("Prognoza na 7 dni", "7-day forecast"), 24, true, detailText);
         addDailyForecast(content);
         detailLine(content, tr("Warunki teraz", "Conditions now"), 24, true, detailText);
         addWeatherMetrics(content);
@@ -1579,6 +1934,7 @@ public final class DashboardActivity extends Activity {
     }
 
     private void showDialogWithBlur(Dialog dialog, Runnable afterDismiss) {
+        long preparationStarted = android.os.SystemClock.elapsedRealtimeNanos();
         popupDepth++;
         popupOpen = true;
         handler.removeCallbacks(startScreensaver);
@@ -1588,43 +1944,61 @@ public final class DashboardActivity extends Activity {
         final float parentAlpha = parentContent == null ? 1f : parentContent.getAlpha();
         if (parentContent != null) parentContent.setAlpha(0f);
         final FrameLayout dashboard = root;
-        if (dashboard == null || dashboard.getWidth() == 0 || dashboard.getHeight() == 0) {
-            dialog.setOnDismissListener(d -> {
-                visibleDialogs.remove(dialog);
-                if (parentContent != null) parentContent.setAlpha(parentAlpha);
-                popupOpen = --popupDepth > 0;
-                if (afterDismiss != null) afterDismiss.run();
-                resetScreensaverTimer();
-            });
-            dialog.show();
-            visibleDialogs.add(dialog);
-            return;
+        boolean reusedBackdrop = popupBlurImage != null;
+        // One backdrop for the entire popup stack. The dashboard cannot rebuild
+        // until this stack closes, so nested dialogs can safely reuse it.
+        if (popupBlurImage == null && dashboard != null
+                && dashboard.getWidth() > 0 && dashboard.getHeight() > 0) {
+            int width = Math.max(1, dashboard.getWidth() / 4);
+            int height = Math.max(1, dashboard.getHeight() / 4);
+            popupBlurBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+            Canvas capture = new Canvas(popupBlurBitmap);
+            capture.scale(width / (float) dashboard.getWidth(), height / (float) dashboard.getHeight());
+            dashboard.draw(capture);
+            blurBackdrop(popupBlurBitmap);
+            popupBlurImage = new ImageView(this);
+            popupBlurImage.setImageBitmap(popupBlurBitmap);
+            popupBlurImage.setScaleType(ImageView.ScaleType.FIT_XY);
+            popupBlurImage.setFocusable(false);
+            dashboard.addView(popupBlurImage, new FrameLayout.LayoutParams(-1, -1));
         }
-        int width = Math.max(1, dashboard.getWidth() / 4);
-        int height = Math.max(1, dashboard.getHeight() / 4);
-        Bitmap backdrop = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-        Canvas capture = new Canvas(backdrop);
-        capture.scale(width / (float) dashboard.getWidth(), height / (float) dashboard.getHeight());
-        dashboard.draw(capture);
-        blurBackdrop(backdrop);
-        ImageView blur = new ImageView(this);
-        blur.setImageBitmap(backdrop);
-        blur.setScaleType(ImageView.ScaleType.FIT_XY);
-        blur.setFocusable(false);
-        dashboard.addView(blur, new FrameLayout.LayoutParams(-1, -1));
         dialog.setOnDismissListener(d -> {
             visibleDialogs.remove(dialog);
             if (parentContent != null) parentContent.setAlpha(parentAlpha);
-            ViewGroup parent = (ViewGroup) blur.getParent();
-            if (parent != null) parent.removeView(blur);
-            blur.setImageDrawable(null);
-            backdrop.recycle();
             popupOpen = --popupDepth > 0;
+            if (!popupOpen) releasePopupBackdrop();
             if (afterDismiss != null) afterDismiss.run();
+            rebuildWhenPopupsClose();
             resetScreensaverTimer();
         });
         dialog.show();
         visibleDialogs.add(dialog);
+        if ((getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0)
+            android.util.Log.d("LinarTVPerf", "popup_prepare_ms="
+                    + (android.os.SystemClock.elapsedRealtimeNanos() - preparationStarted) / 1_000_000.0
+                    + " depth=" + popupDepth + " reused=" + reusedBackdrop);
+    }
+
+    private void releasePopupBackdrop() {
+        if (popupBlurImage != null) {
+            ViewGroup parent = (ViewGroup) popupBlurImage.getParent();
+            if (parent != null) parent.removeView(popupBlurImage);
+            popupBlurImage.setImageDrawable(null);
+            popupBlurImage = null;
+        }
+        if (popupBlurBitmap != null) {
+            popupBlurBitmap.recycle();
+            popupBlurBitmap = null;
+        }
+    }
+
+    private void rebuildWhenPopupsClose() {
+        handler.post(() -> {
+            if (!popupOpen && rebuildAfterPopup && !isFinishing() && !isDestroyed()) {
+                rebuildAfterPopup = false;
+                buildScreen();
+            }
+        });
     }
 
     private void blurBackdrop(Bitmap bitmap) {
@@ -1636,24 +2010,7 @@ public final class DashboardActivity extends Activity {
         int[] pixels = new int[width * height];
         int[] temp = new int[pixels.length];
         bitmap.getPixels(pixels, 0, width, 0, 0, width, height);
-        for (int pass = 0; pass < passes; pass++) {
-            for (int y = 0; y < height; y++) for (int x = 0; x < width; x++) {
-                int red = 0, green = 0, blue = 0, count = 0;
-                for (int dx = -radius; dx <= radius; dx++) {
-                    int color = pixels[y * width + Math.max(0, Math.min(width - 1, x + dx))];
-                    red += Color.red(color); green += Color.green(color); blue += Color.blue(color); count++;
-                }
-                temp[y * width + x] = Color.rgb(red / count, green / count, blue / count);
-            }
-            for (int y = 0; y < height; y++) for (int x = 0; x < width; x++) {
-                int red = 0, green = 0, blue = 0, count = 0;
-                for (int dy = -radius; dy <= radius; dy++) {
-                    int color = temp[Math.max(0, Math.min(height - 1, y + dy)) * width + x];
-                    red += Color.red(color); green += Color.green(color); blue += Color.blue(color); count++;
-                }
-                pixels[y * width + x] = Color.rgb(red / count, green / count, blue / count);
-            }
-        }
+        BlurPixels.apply(pixels, temp, width, height, radius, passes);
         bitmap.setPixels(pixels, 0, width, 0, 0, width, height);
     }
 
@@ -2435,8 +2792,9 @@ public final class DashboardActivity extends Activity {
 
     private void resetScreensaverTimer() {
         handler.removeCallbacks(startScreensaver);
-        if (!popupOpen && !screensaverActive && root != null)
-            handler.postDelayed(startScreensaver, SCREENSAVER_IDLE_MS);
+        long idle = LauncherTiming.idleMillis(getPreferences(MODE_PRIVATE).getInt("screensaver_minutes", 5));
+        if (dashboardVisible && !popupOpen && !screensaverActive && root != null && idle > 0)
+            handler.postDelayed(startScreensaver, idle);
     }
 
     private void showScreensaver() {
@@ -3010,45 +3368,51 @@ public final class DashboardActivity extends Activity {
                 .compareToIgnoreCase(String.valueOf(b.loadLabel(this))));
         Dialog dialog = new Dialog(this);
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
-        LinearLayout content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout content = popupContent();
         content.setClipChildren(false);
-        content.setPadding(px(30), px(25), px(30), px(29));
-        content.setBackground(shape(night ? 0xFC1A2B4B : 0xFFF2EEE7,
-                night ? 0x777F9BC5 : 0x8895A6C0, 27, 1));
+        content.setClipToPadding(false);
+        GradientDrawable sideSurface = new GradientDrawable();
+        sideSurface.setColor(night ? 0xFF142548 : 0xFFF5F2EA);
+        sideSurface.setCornerRadii(new float[]{px(26), px(26), 0, 0, 0, 0, px(26), px(26)});
+        content.setBackground(sideSurface);
         TextView title = new TextView(this);
         title.setText(tr("Źródła", "Inputs"));
         title.setTextColor(night ? Color.WHITE : 0xFF17284B);
         title.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(31));
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         content.addView(title);
-        TextView hint = new TextView(this);
-        hint.setText(tr("Wybierz telewizję lub wejście HDMI", "Choose live TV or an HDMI input"));
-        hint.setTextColor(night ? 0xFFBFCDE8 : 0xFF5B6B85);
-        hint.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(17));
-        LinearLayout.LayoutParams hintParams = new LinearLayout.LayoutParams(-1, -2);
-        hintParams.topMargin = px(3);
-        hintParams.bottomMargin = px(23);
-        content.addView(hint, hintParams);
-        LinearLayout row = null;
+        ScrollView scroll = new ScrollView(this);
+        scroll.setClipChildren(false);
+        scroll.setClipToPadding(false);
+        scroll.setPadding(0, px(16), 0, 0);
+        LinearLayout rows = new LinearLayout(this);
+        rows.setOrientation(LinearLayout.VERTICAL);
+        rows.setClipChildren(false);
+        rows.setClipToPadding(false);
+        scroll.addView(rows);
+        content.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        // Opt-in demonstration for the local test environment only. Real TV inputs
+        // always take precedence, and release builds never show simulated entries.
+        boolean demo = inputs.isEmpty()
+                && (getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+                && getIntent().getBooleanExtra("demo_hdmi_inputs", false);
+        int hdmiCount = demo ? 2 : inputs.size();
         View first = null;
-        for (int i = 0; i <= inputs.size(); i++) {
-            if (i % 3 == 0) {
-                row = new LinearLayout(this);
-                row.setOrientation(LinearLayout.HORIZONTAL);
-                row.setGravity(Gravity.CENTER);
-                row.setClipChildren(false);
-                LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(-1, px(139));
-                content.addView(row, rowParams);
-            }
+        for (int i = 0; i <= hdmiCount; i++) {
             final int item = i;
             String label;
             if (i == 0) label = tr("Telewizja", "Live TV");
+            else if (demo) label = "HDMI " + i;
             else {
                 CharSequence inputLabel = inputs.get(i - 1).loadLabel(this);
                 label = inputLabel == null || inputLabel.length() == 0 ? "HDMI " + i : inputLabel.toString();
             }
             View tile = sourceTile(label, i == 0, () -> {
+                if (demo) {
+                    Toast.makeText(this, tr("Podgląd źródła: ", "Input preview: ") + label,
+                            Toast.LENGTH_SHORT).show();
+                    return;
+                }
                 dialog.dismiss();
                 if (item == 0) { launch("org.droidtv.playtv"); return; }
                 try {
@@ -3060,15 +3424,18 @@ public final class DashboardActivity extends Activity {
                             "The TV could not open the HDMI input"), Toast.LENGTH_SHORT).show();
                 }
             });
-            LinearLayout.LayoutParams tileParams = new LinearLayout.LayoutParams(px(240), px(122));
-            tileParams.setMargins(px(7), px(4), px(7), px(11));
-            row.addView(tile, tileParams);
-            if (first == null) first = tile;
+            LinearLayout.LayoutParams tileParams = new LinearLayout.LayoutParams(-1, px(112));
+            tileParams.setMargins(0, px(8), 0, px(12));
+            rows.addView(tile, tileParams);
+            if (first == null) first = ((ViewGroup) tile).getChildAt(1);
         }
-        dialog.setContentView(content);
+        dialog.setContentView(content, new ViewGroup.LayoutParams(-1, -1));
         dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        dialog.getWindow().getDecorView().setPadding(0, 0, 0, 0);
+        dialog.getWindow().getDecorView().setSystemUiVisibility(root.getSystemUiVisibility());
+        dialog.getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
         showDialogWithBlur(dialog);
-        dialog.getWindow().setLayout(px(820), -2);
+        alignSidePanel(dialog);
         if (first != null) first.requestFocus();
     }
 
@@ -3077,9 +3444,21 @@ public final class DashboardActivity extends Activity {
         int focusedText = night ? 0xFF152849 : Color.WHITE;
         int normalFill = night ? 0xFF344B72 : 0xFFFFFFFF;
         int focusedFill = night ? 0xFFF0F6FF : 0xFF244574;
+        FrameLayout wrapper = new FrameLayout(this);
+        wrapper.setClipChildren(false);
+        wrapper.setClipToPadding(false);
+        View glow = new View(this);
+        glow.setBackground(new AppGlowDrawable(21, false));
+        glow.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        glow.setAlpha(0f);
+        FrameLayout.LayoutParams glowParams = new FrameLayout.LayoutParams(-1, -1);
+        glowParams.setMargins(-px(24), -px(24), -px(24), -px(24));
+        wrapper.addView(glow, glowParams);
         LinearLayout tile = new LinearLayout(this);
-        tile.setOrientation(LinearLayout.VERTICAL);
-        tile.setGravity(Gravity.CENTER);
+        tile.setId(View.generateViewId());
+        tile.setOrientation(LinearLayout.HORIZONTAL);
+        tile.setGravity(Gravity.CENTER_VERTICAL);
+        tile.setPadding(px(24), 0, px(24), 0);
         tile.setFocusable(true);
         tile.setFocusableInTouchMode(true);
         tile.setClickable(true);
@@ -3095,22 +3474,22 @@ public final class DashboardActivity extends Activity {
         name.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         name.setSingleLine(true);
         name.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        name.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams nameParams = new LinearLayout.LayoutParams(-1, -2);
-        nameParams.setMargins(px(9), px(6), px(9), 0);
+        name.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams nameParams = new LinearLayout.LayoutParams(0, -2, 1);
+        nameParams.setMargins(px(22), 0, 0, 0);
         tile.addView(name, nameParams);
         tile.setOnFocusChangeListener((view, focused) -> {
+            showTileGlow(glow, focused);
             tile.setBackground(shape(focused ? focusedFill : normalFill,
                     focused ? Color.TRANSPARENT : night ? 0x668DA8CF : 0x99C1CCE0,
                     21, focused ? 0 : 1));
             name.setTextColor(focused ? focusedText : normalText);
             glyph.setColor(focused ? focusedText : normalText);
             tile.setElevation(focused ? px(12) : 0);
-            tile.setScaleX(focused ? 1.035f : 1f);
-            tile.setScaleY(focused ? 1.035f : 1f);
         });
         tile.setOnClickListener(view -> action.run());
-        return tile;
+        wrapper.addView(tile, new FrameLayout.LayoutParams(-1, -1));
+        return wrapper;
     }
 
     private final class SourceGlyph extends View {
