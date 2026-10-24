@@ -1341,7 +1341,11 @@ public final class DashboardActivity extends Activity {
         String time = match.hasTime ? new SimpleDateFormat("HH:mm", PL).format(new Date(match.startsAt)) : "—:—";
         text(time, 61, color, true, x + 290, y + 163, 190, 75).setGravity(Gravity.CENTER);
         if (live) {
-            TextView liveBadge = text(tr("Teraz!", "Live!"), 20, 0xFFFFFFFF, true,
+            View liveAura = new View(this);
+            liveAura.setBackground(new AppGlowDrawable(15, false, 0x90FF3556, 0xA5FF7186));
+            liveAura.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+            place(liveAura, x + 306, y + 220, 158, 74);
+            TextView liveBadge = text("LIVE", 20, 0xFFFFFFFF, true,
                     x + 330, y + 242, 110, 30);
             liveBadge.setGravity(Gravity.CENTER);
             liveBadge.setBackground(shape(0xFFD8283F, 0xFFFF9AA6, 15));
@@ -2325,10 +2329,16 @@ public final class DashboardActivity extends Activity {
         private final Paint glow = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final int radius;
         private final boolean outerOnly;
+        private final int outerColor, innerColor;
         AppGlowDrawable() { this(32, false); }
         AppGlowDrawable(int radius, boolean outerOnly) {
+            this(radius, outerOnly, 0xBA55BAFF, 0xA57FDBFF);
+        }
+        AppGlowDrawable(int radius, boolean outerOnly, int outerColor, int innerColor) {
             this.radius = radius;
             this.outerOnly = outerOnly;
+            this.outerColor = outerColor;
+            this.innerColor = innerColor;
         }
         @Override public void draw(Canvas canvas) {
             android.graphics.Rect bounds = getBounds();
@@ -2338,11 +2348,11 @@ public final class DashboardActivity extends Activity {
                 // Use the app tile's full-strength aura, then mask its centre because
                 // these dashboard cards are translucent and would reveal the fill.
                 glow.setStyle(Paint.Style.FILL);
-                glow.setColor(0xBA55BAFF);
+                glow.setColor(outerColor);
                 glow.setMaskFilter(new android.graphics.BlurMaskFilter(px(26),
                         android.graphics.BlurMaskFilter.Blur.NORMAL));
                 canvas.drawRoundRect(card, px(radius), px(radius), glow);
-                glow.setColor(0xA57FDBFF);
+                glow.setColor(innerColor);
                 glow.setMaskFilter(new android.graphics.BlurMaskFilter(px(11),
                         android.graphics.BlurMaskFilter.Blur.NORMAL));
                 canvas.drawRoundRect(card, px(radius), px(radius), glow);
@@ -2353,11 +2363,11 @@ public final class DashboardActivity extends Activity {
                 return;
             }
             glow.setStyle(Paint.Style.FILL);
-            glow.setColor(0xBA55BAFF);
+            glow.setColor(outerColor);
             glow.setMaskFilter(new android.graphics.BlurMaskFilter(px(26),
                     android.graphics.BlurMaskFilter.Blur.NORMAL));
             canvas.drawRoundRect(card, px(radius), px(radius), glow);
-            glow.setColor(0xA57FDBFF);
+            glow.setColor(innerColor);
             glow.setMaskFilter(new android.graphics.BlurMaskFilter(px(11),
                     android.graphics.BlurMaskFilter.Blur.NORMAL));
             canvas.drawRoundRect(card, px(radius), px(radius), glow);
@@ -3145,26 +3155,25 @@ public final class DashboardActivity extends Activity {
             try { code = Integer.parseInt(condition.substring(1)); }
             catch (Exception ignored) { code = 3; }
             int glyph;
-            int tint;
-            if (code == 0) { glyph = day ? 0xf00d : 0xf02e; tint = 0xFFFFD65D; }
-            else if (code == 1) { glyph = day ? 0xf00c : 0xf081; tint = 0xFFFFD65D; }
-            else if (code == 2) { glyph = day ? 0xf002 : 0xf086; tint = 0xFFFFD65D; }
-            else if (code == 3) { glyph = 0xf013; tint = 0xFFE4F0FF; }
-            else if (code == 45 || code == 48) { glyph = day ? 0xf003 : 0xf04a; tint = 0xFFCCD9E9; }
-            else if (code >= 51 && code <= 55) { glyph = day ? 0xf00b : 0xf02b; tint = 0xFF82CFFF; }
+            if (code == 0) { glyph = day ? 0xf00d : 0xf02e; }
+            else if (code == 1) { glyph = day ? 0xf00c : 0xf081; }
+            else if (code == 2) { glyph = day ? 0xf002 : 0xf086; }
+            else if (code == 3) { glyph = 0xf013; }
+            else if (code == 45 || code == 48) { glyph = day ? 0xf003 : 0xf04a; }
+            else if (code >= 51 && code <= 55) { glyph = day ? 0xf00b : 0xf02b; }
             else if (code == 56 || code == 57 || code == 66 || code == 67) {
-                glyph = day ? 0xf006 : 0xf026; tint = 0xFFA7DBF9;
+                glyph = day ? 0xf006 : 0xf026;
             }
-            else if (code >= 61 && code <= 65) { glyph = day ? 0xf008 : 0xf028; tint = 0xFF82CFFF; }
+            else if (code >= 61 && code <= 65) { glyph = day ? 0xf008 : 0xf028; }
             else if (code >= 71 && code <= 77 || code == 85 || code == 86) {
-                glyph = day ? 0xf00a : 0xf02a; tint = 0xFFB5E7FF;
+                glyph = day ? 0xf00a : 0xf02a;
             }
-            else if (code >= 80 && code <= 82) { glyph = day ? 0xf009 : 0xf029; tint = 0xFF82CFFF; }
-            else if (code == 96 || code == 99) { glyph = day ? 0xf004 : 0xf024; tint = 0xFFFFC860; }
-            else if (code >= 95) { glyph = day ? 0xf010 : 0xf02d; tint = 0xFFFFC860; }
-            else { glyph = 0xf013; tint = 0xFFE4F0FF; }
+            else if (code >= 80 && code <= 82) { glyph = day ? 0xf009 : 0xf029; }
+            else if (code == 96 || code == 99) { glyph = day ? 0xf004 : 0xf024; }
+            else if (code >= 95) { glyph = day ? 0xf010 : 0xf02d; }
+            else { glyph = 0xf013; }
             p.reset(); p.setAntiAlias(true); p.setTypeface(weatherTypeface);
-            p.setStyle(Paint.Style.FILL); p.setColor(tint);
+            p.setStyle(Paint.Style.FILL); p.setColor(ink);
             p.setTextSize(Math.min(getWidth() * 0.86f, getHeight() * 0.9f));
             String symbol = new String(Character.toChars(glyph));
             Paint.FontMetrics fm = p.getFontMetrics();
