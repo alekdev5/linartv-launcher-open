@@ -139,6 +139,8 @@ public final class DashboardActivity extends Activity {
     private long forecastUpdatedAt;
     private long forecastAttemptedAt;
     private boolean forecastLoading;
+    private boolean weatherSettingsRefreshPending;
+    private long weatherLocationVersion;
     private static final long WEATHER_REFRESH_MS = 30L * 60 * 1000;
     private String cityName;
     private double cityLatitude;
@@ -152,6 +154,7 @@ public final class DashboardActivity extends Activity {
         long updatedAt;
         long attemptedAt;
         boolean loading;
+        boolean settingsRefreshPending;
         int selected;
         long renderedFirstMatchStart;
         boolean renderedLive;
@@ -310,10 +313,12 @@ public final class DashboardActivity extends Activity {
                 || now - forecastAttemptedAt < 5 * 60_000L) return;
         forecastLoading = true;
         forecastAttemptedAt = now;
+        String requestedCity = cityName;
+        double requestedLatitude = cityLatitude, requestedLongitude = cityLongitude;
+        long requestedLocationVersion = weatherLocationVersion;
         new Thread(() -> {
             JSONObject result = null;
-            String requestedCity = cityName;
-            try { result = PublicForecastClient.fetch(cityLatitude, cityLongitude).put("city", requestedCity); }
+            try { result = PublicForecastClient.fetch(requestedLatitude, requestedLongitude).put("city", requestedCity); }
             catch (Exception e) {
                 android.util.Log.w("LinarTV", "Weather refresh failed", e);
                 result = null;
@@ -321,12 +326,19 @@ public final class DashboardActivity extends Activity {
             final JSONObject fetched = result;
             handler.post(() -> {
                 forecastLoading = false;
-                if (fetched != null && requestedCity.equals(cityName)) {
+                if (fetched != null && requestedLocationVersion == weatherLocationVersion) {
                     forecast = fetched;
                     forecastUpdatedAt = System.currentTimeMillis();
                     getPreferences(MODE_PRIVATE).edit().putString("weather_json", fetched.toString())
                             .putLong("weather_updated", forecastUpdatedAt).apply();
-                    buildScreen();
+                    if (weatherSettingsRefreshPending) {
+                        weatherSettingsRefreshPending = false;
+                        applyVisualSettingsNow();
+                    } else buildScreen();
+                }
+                if (requestedLocationVersion != weatherLocationVersion) {
+                    forecastAttemptedAt = 0;
+                    refreshWeather();
                 }
             });
         }, "weather-fetch").start();
@@ -424,7 +436,7 @@ public final class DashboardActivity extends Activity {
                         getPreferences(MODE_PRIVATE).edit().putString(feed.key + "_calendar_matches", rows.toString())
                                 .remove(feed.key + "_calendar_ics")
                                 .putLong(feed.key + "_calendar_updated", feed.updatedAt).apply();
-                        buildScreen();
+                        finishCalendarSettingsRefresh(feed);
                         crests.refreshIfDue(clubOneCalendar.matches, clubOneCalendar.leagueSlug,
                                 clubTwoCalendar.matches, clubTwoCalendar.leagueSlug, true);
                     });
@@ -433,7 +445,7 @@ public final class DashboardActivity extends Activity {
                 handler.post(() -> {
                     if (feed != clubOneCalendar && feed != clubTwoCalendar) return;
                     feed.loading = false;
-                    buildScreen();
+                    finishCalendarSettingsRefresh(feed);
                 });
             }
         }, "calendar-" + feed.key).start();
@@ -860,6 +872,7 @@ public final class DashboardActivity extends Activity {
                 tr("Wybierz kluby", "Choose clubs"), tr("Odśwież teraz", "Refresh now")}, which -> {
             if (which == 0) { showTeamSetup(); return; }
             for (CalendarFeed feed : new CalendarFeed[]{clubOneCalendar, clubTwoCalendar}) {
+                feed.settingsRefreshPending = true;
                 if (feed.loading) continue;
                 feed.updatedAt = 0;
                 feed.attemptedAt = 0;
@@ -882,9 +895,17 @@ public final class DashboardActivity extends Activity {
         });
     }
 
+    private void finishCalendarSettingsRefresh(CalendarFeed feed) {
+        if (feed.settingsRefreshPending) {
+            feed.settingsRefreshPending = false;
+            applyVisualSettingsNow();
+        } else buildScreen();
+    }
+
     private void saveScreensaverMinutes(int minutes) {
         getPreferences(MODE_PRIVATE).edit().putInt("screensaver_minutes", minutes).apply();
         resetScreensaverTimer();
+        applyVisualSettingsNow();
     }
 
     private void showAppearanceSettings() {
@@ -893,7 +914,7 @@ public final class DashboardActivity extends Activity {
                 tr("Zawsze ciemny", "Always dark"), tr("Własne godziny", "Custom schedule")}, which -> {
             if (which == 3) { showAppearanceSchedule(); return; }
             getPreferences(MODE_PRIVATE).edit().putString("appearance_mode", new String[]{"auto", "light", "dark"}[which]).apply();
-            buildScreen();
+            applyVisualSettingsNow();
         });
     }
 
@@ -913,7 +934,7 @@ public final class DashboardActivity extends Activity {
                 }
                 prefs.edit().putInt(which == 0 ? "day_start_minute" : "night_start_minute", selected)
                         .putString("appearance_mode", "auto").apply();
-                buildScreen();
+                applyVisualSettingsNow();
             });
         });
     }
@@ -996,7 +1017,7 @@ public final class DashboardActivity extends Activity {
             if (fahrenheit == selectedFahrenheit) return;
             fahrenheit = selectedFahrenheit;
             getPreferences(MODE_PRIVATE).edit().putString("temperature_unit", fahrenheit ? "f" : "c").apply();
-            buildScreen();
+            applyVisualSettingsNow();
         });
     }
 
@@ -1036,9 +1057,9 @@ public final class DashboardActivity extends Activity {
             getPreferences(MODE_PRIVATE).edit().putString("language", english ? "en" : "pl").apply();
             // Update the still-open overview in place. Dialog dismiss listeners
             // can run after this callback; do not depend on their ordering.
+            applyVisualSettingsNow();
             if (publicSettingsDialog != null && publicSettingsDialog.isShowing())
                 renderPublicSettings(publicSettingsDialog, true);
-            buildScreen();
         });
     }
 
@@ -1248,6 +1269,7 @@ public final class DashboardActivity extends Activity {
     }
 
     private void saveCity(PublicForecastClient.Place place) {
+        weatherLocationVersion++;
         cityName = place.name;
         cityLatitude = place.latitude;
         cityLongitude = place.longitude;
@@ -1258,7 +1280,8 @@ public final class DashboardActivity extends Activity {
         forecast = null;
         forecastUpdatedAt = 0;
         forecastAttemptedAt = 0;
-        buildScreen();
+        weatherSettingsRefreshPending = true;
+        applyVisualSettingsNow();
         refreshWeather();
     }
 
@@ -1493,7 +1516,9 @@ public final class DashboardActivity extends Activity {
         clubTwoCalendar = configuredCalendar(saved, 2);
         restoreCalendar(clubOneCalendar, saved);
         restoreCalendar(clubTwoCalendar, saved);
-        buildScreen();
+        clubOneCalendar.settingsRefreshPending = true;
+        clubTwoCalendar.settingsRefreshPending = true;
+        applyVisualSettingsNow();
     }
 
     private View tileGlow(int x, int y, int w, int h, int radius) {
@@ -1943,25 +1968,8 @@ public final class DashboardActivity extends Activity {
                 ? parentDialog.findViewById(android.R.id.content) : null;
         final float parentAlpha = parentContent == null ? 1f : parentContent.getAlpha();
         if (parentContent != null) parentContent.setAlpha(0f);
-        final FrameLayout dashboard = root;
         boolean reusedBackdrop = popupBlurImage != null;
-        // One backdrop for the entire popup stack. The dashboard cannot rebuild
-        // until this stack closes, so nested dialogs can safely reuse it.
-        if (popupBlurImage == null && dashboard != null
-                && dashboard.getWidth() > 0 && dashboard.getHeight() > 0) {
-            int width = Math.max(1, dashboard.getWidth() / 4);
-            int height = Math.max(1, dashboard.getHeight() / 4);
-            popupBlurBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-            Canvas capture = new Canvas(popupBlurBitmap);
-            capture.scale(width / (float) dashboard.getWidth(), height / (float) dashboard.getHeight());
-            dashboard.draw(capture);
-            blurBackdrop(popupBlurBitmap);
-            popupBlurImage = new ImageView(this);
-            popupBlurImage.setImageBitmap(popupBlurBitmap);
-            popupBlurImage.setScaleType(ImageView.ScaleType.FIT_XY);
-            popupBlurImage.setFocusable(false);
-            dashboard.addView(popupBlurImage, new FrameLayout.LayoutParams(-1, -1));
-        }
+        ensurePopupBackdrop();
         dialog.setOnDismissListener(d -> {
             visibleDialogs.remove(dialog);
             if (parentContent != null) parentContent.setAlpha(parentAlpha);
@@ -1977,6 +1985,44 @@ public final class DashboardActivity extends Activity {
             android.util.Log.d("LinarTVPerf", "popup_prepare_ms="
                     + (android.os.SystemClock.elapsedRealtimeNanos() - preparationStarted) / 1_000_000.0
                     + " depth=" + popupDepth + " reused=" + reusedBackdrop);
+    }
+
+    private void ensurePopupBackdrop() {
+        if (popupBlurImage != null || root == null || root.getWidth() <= 0 || root.getHeight() <= 0) return;
+        int width = Math.max(1, root.getWidth() / 4);
+        int height = Math.max(1, root.getHeight() / 4);
+        popupBlurBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        Canvas capture = new Canvas(popupBlurBitmap);
+        capture.scale(width / (float) root.getWidth(), height / (float) root.getHeight());
+        root.draw(capture);
+        blurBackdrop(popupBlurBitmap);
+        popupBlurImage = new ImageView(this);
+        popupBlurImage.setImageBitmap(popupBlurBitmap);
+        popupBlurImage.setScaleType(ImageView.ScaleType.FIT_XY);
+        popupBlurImage.setFocusable(false);
+        root.addView(popupBlurImage, new FrameLayout.LayoutParams(-1, -1));
+    }
+
+    private void applyVisualSettingsNow() {
+        if (!popupOpen) { buildScreen(); return; }
+        // User changes are applied immediately; background network updates still wait.
+        releasePopupBackdrop();
+        popupOpen = false;
+        try { buildScreen(); }
+        finally { popupOpen = popupDepth > 0; }
+        rebuildAfterPopup = false;
+        handler.removeCallbacks(startScreensaver);
+        if (publicSettingsDialog != null && publicSettingsDialog.isShowing())
+            renderPublicSettings(publicSettingsDialog, false);
+        final FrameLayout updatedRoot = root;
+        updatedRoot.getViewTreeObserver().addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
+            @Override public boolean onPreDraw() {
+                if (updatedRoot.getViewTreeObserver().isAlive())
+                    updatedRoot.getViewTreeObserver().removeOnPreDrawListener(this);
+                if (root == updatedRoot && popupOpen) ensurePopupBackdrop();
+                return true;
+            }
+        });
     }
 
     private void releasePopupBackdrop() {
@@ -2754,9 +2800,13 @@ public final class DashboardActivity extends Activity {
                 try { manager.killBackgroundProcesses(pkg); }
                 catch (SecurityException ignored) { }
             }
-            handler.post(() -> Toast.makeText(this,
+            handler.post(() -> {
+                if (publicSettingsDialog != null && publicSettingsDialog.isShowing())
+                    renderPublicSettings(publicSettingsDialog, false);
+                Toast.makeText(this,
                     tr("Poproszono system o zamknięcie aplikacji w tle",
-                            "Asked the system to close background apps"), Toast.LENGTH_SHORT).show());
+                            "Asked the system to close background apps"), Toast.LENGTH_SHORT).show();
+            });
         }, "background-cleanup").start();
     }
 
@@ -3264,7 +3314,7 @@ public final class DashboardActivity extends Activity {
         tile.setOnClickListener(v -> {
             getPreferences(MODE_PRIVATE).edit().putString("wallpaper", key).apply();
             dialog.dismiss();
-            buildScreen();
+            applyVisualSettingsNow();
         });
         FrameLayout.LayoutParams tileParams = new FrameLayout.LayoutParams(px(260), px(182));
         tileParams.leftMargin = px(24);
@@ -3302,7 +3352,7 @@ public final class DashboardActivity extends Activity {
                     getPreferences(MODE_PRIVATE).edit().putString("wallpaper", "sunset").apply();
                 confirmation.dismiss();
                 gallery.dismiss();
-                buildScreen();
+                applyVisualSettingsNow();
                 handler.post(this::showWallpaperGallery);
             } catch (IOException e) {
                 Toast.makeText(this, tr("Nie udało się usunąć zdjęcia", "Could not delete photo"), Toast.LENGTH_LONG).show();
