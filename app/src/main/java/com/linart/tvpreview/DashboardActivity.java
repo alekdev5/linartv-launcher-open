@@ -171,6 +171,7 @@ public final class DashboardActivity extends Activity {
     private static final long SCREENSAVER_SLIDE_MS = 30_000L;
     private boolean popupOpen;
     private int popupDepth;
+    private final List<Dialog> visibleDialogs = new ArrayList<>();
     private boolean english;
     private boolean fahrenheit;
     private Locale displayLocale() { return english ? EN : PL; }
@@ -1440,14 +1441,22 @@ public final class DashboardActivity extends Activity {
         popupDepth++;
         popupOpen = true;
         handler.removeCallbacks(startScreensaver);
+        Dialog parentDialog = visibleDialogs.isEmpty() ? null : visibleDialogs.get(visibleDialogs.size() - 1);
+        View parentContent = parentDialog != null && parentDialog.isShowing()
+                ? parentDialog.findViewById(android.R.id.content) : null;
+        final float parentAlpha = parentContent == null ? 1f : parentContent.getAlpha();
+        if (parentContent != null) parentContent.setAlpha(0f);
         final FrameLayout dashboard = root;
         if (dashboard == null || dashboard.getWidth() == 0 || dashboard.getHeight() == 0) {
             dialog.setOnDismissListener(d -> {
+                visibleDialogs.remove(dialog);
+                if (parentContent != null) parentContent.setAlpha(parentAlpha);
                 popupOpen = --popupDepth > 0;
                 if (afterDismiss != null) afterDismiss.run();
                 resetScreensaverTimer();
             });
             dialog.show();
+            visibleDialogs.add(dialog);
             return;
         }
         int width = Math.max(1, dashboard.getWidth() / 4);
@@ -1463,6 +1472,8 @@ public final class DashboardActivity extends Activity {
         blur.setFocusable(false);
         dashboard.addView(blur, new FrameLayout.LayoutParams(-1, -1));
         dialog.setOnDismissListener(d -> {
+            visibleDialogs.remove(dialog);
+            if (parentContent != null) parentContent.setAlpha(parentAlpha);
             ViewGroup parent = (ViewGroup) blur.getParent();
             if (parent != null) parent.removeView(blur);
             blur.setImageDrawable(null);
@@ -1472,6 +1483,7 @@ public final class DashboardActivity extends Activity {
             resetScreensaverTimer();
         });
         dialog.show();
+        visibleDialogs.add(dialog);
     }
 
     private void blurBackdrop(Bitmap bitmap) {
