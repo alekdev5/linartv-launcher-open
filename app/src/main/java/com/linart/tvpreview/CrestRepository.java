@@ -18,8 +18,10 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.text.Normalizer;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -67,6 +69,23 @@ final class CrestRepository {
     }
 
     private static String key(String name, String league) { return league + "|" + name; }
+    void registerFixturTeam(String name, String url) {
+        if (!url.matches("https://fixtur\\.es/images/teams/football/[a-z0-9-]+\\.png")) return;
+        prefs.edit().putString("fixtur_" + name, url).apply();
+        Entry old = entries.get(key(name, "fixtur.es"));
+        if (old != null && !url.equals(old.url)) {
+            cacheFile(old).delete();
+            old.url = url;
+            old.bitmap = null;
+        }
+    }
+
+    private static String fixturLogo(String name) {
+        String slug = Normalizer.normalize(name.toLowerCase(Locale.ROOT), Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "").replaceAll("[^a-z0-9]+", "-")
+                .replaceAll("^-|-$", "");
+        return slug.isEmpty() ? "" : "https://fixtur.es/images/teams/football/" + slug + ".png";
+    }
     private static String versionKey(Entry entry) { return "url_" + key(entry.name, entry.league); }
     private File cacheFile(Entry entry) {
         File folder = new File(context.getFilesDir(), "crests");
@@ -76,22 +95,30 @@ final class CrestRepository {
 
     Bitmap get(String name, String league) {
         Entry entry = entries.get(key(name, league));
+        if (entry == null && "fixtur.es".equals(league)) {
+            String url = prefs.getString("fixtur_" + name, fixturLogo(name));
+            if (!url.isEmpty()) {
+                entry = new Entry(name, league, null, "fixtur.es", 0, url);
+                entries.put(key(name, league), entry);
+            }
+        }
         if (entry == null) return null;
         if (entry.bitmap != null && !entry.bitmap.isRecycled()) return entry.bitmap;
         if (!entry.loading) {
             entry.loading = true;
+            final Entry targetEntry = entry;
             String requestedUrl = entry.url;
             new Thread(() -> {
-                Bitmap loaded = load(entry);
+                Bitmap loaded = load(targetEntry);
                 main.post(() -> {
-                    entry.loading = false;
-                    if (entries.get(key(entry.name, entry.league)) != entry
-                            || !requestedUrl.equals(entry.url)) {
+                    targetEntry.loading = false;
+                    if (entries.get(key(targetEntry.name, targetEntry.league)) != targetEntry
+                            || !requestedUrl.equals(targetEntry.url)) {
                         if (loaded != null) loaded.recycle();
                         return;
                     }
-                    entry.bitmap = loaded;
-                    if (loaded != null) listener.onCrestChanged(entry.name);
+                    targetEntry.bitmap = loaded;
+                    if (loaded != null) listener.onCrestChanged(targetEntry.name);
                 });
             }, "crest-decode").start();
         }
@@ -109,6 +136,17 @@ final class CrestRepository {
                 bitmap = decode(context.getAssets().open(entry.asset));
             if (bitmap == null && bundledPreferred && cached.isFile())
                 bitmap = decode(new java.io.FileInputStream(cached));
+            if (bitmap == null && "fixtur.es".equals(entry.source)) {
+                byte[] image = fetch(entry.url, 5_000_000);
+                if (isImage(image)) {
+                    bitmap = decode(new java.io.ByteArrayInputStream(image));
+                    if (bitmap != null) {
+                        try (FileOutputStream output = new FileOutputStream(cached)) {
+                            output.write(image);
+                        }
+                    }
+                }
+            }
             return bitmap;
         } catch (Exception ignored) { }
         return null;
@@ -132,15 +170,18 @@ final class CrestRepository {
         }
     }
 
-    void refreshIfDue(List<IcsMatchParser.Match> firstClub, List<IcsMatchParser.Match> secondClub, boolean forced) {
+    void refreshIfDue(List<IcsMatchParser.Match> firstClub, String firstLeague,
+                      List<IcsMatchParser.Match> secondClub, String secondLeague, boolean forced) {
         long now = System.currentTimeMillis();
         if (running || !forced && now - prefs.getLong("last_check", 0) < CHECK_INTERVAL) return;
         Map<String, String> clubs = new HashMap<>();
-        for (IcsMatchParser.Match match : firstClub) {
-            clubs.put(match.home, "ekstraklasa"); clubs.put(match.away, "ekstraklasa");
+        if (!"fixtur.es".equals(firstLeague)) for (IcsMatchParser.Match match : firstClub) {
+            String league = "ekstraklasa".equals(firstLeague) ? "ekstraklasa" : "iii_liga";
+            clubs.put(match.home, league); clubs.put(match.away, league);
         }
-        for (IcsMatchParser.Match match : secondClub) {
-            clubs.put(match.home, "iii_liga"); clubs.put(match.away, "iii_liga");
+        if (!"fixtur.es".equals(secondLeague)) for (IcsMatchParser.Match match : secondClub) {
+            String league = "ekstraklasa".equals(secondLeague) ? "ekstraklasa" : "iii_liga";
+            clubs.put(match.home, league); clubs.put(match.away, league);
         }
         if (clubs.isEmpty()) return;
         running = true;
@@ -227,7 +268,8 @@ final class CrestRepository {
         connection.setConnectTimeout(8000);
         connection.setReadTimeout(8000);
         connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Android TV) AppleWebKit/537.36 Chrome/128.0.0.0 Safari/537.36");
-        connection.setRequestProperty("Referer", "https://kalendarzeligowe.pl/");
+        connection.setRequestProperty("Referer", url.startsWith("https://fixtur.es/")
+                ? "https://fixtur.es/" : "https://kalendarzeligowe.pl/");
         try {
             if (connection.getResponseCode() != 200) throw new IllegalStateException("HTTP " + connection.getResponseCode());
             return read(connection.getInputStream(), limit);

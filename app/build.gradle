@@ -16,7 +16,7 @@ android {
     compileSdk 34
 
     defaultConfig {
-        applicationId 'io.github.domlin92.linartv'
+        applicationId 'io.github.domlin92.linartv.open'
         minSdk 26
         targetSdk 28
         // Increase versionCode by 1 for every published release.

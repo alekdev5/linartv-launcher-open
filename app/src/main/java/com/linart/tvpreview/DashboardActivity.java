@@ -42,6 +42,8 @@ import android.widget.Toast;
 import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.TextPaint;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.text.style.MetricAffectingSpan;
 
 import java.text.SimpleDateFormat;
@@ -178,6 +180,7 @@ public final class DashboardActivity extends Activity {
     private boolean suppressSaverKeyUp;
     private boolean suppressSaverTouch;
     private FrameLayout screensaver;
+    private View screensaverPreviousFocus;
     private ImageView screensaverImage;
     private LinearLayout screensaverInfo;
     private TextView screensaverClock;
@@ -211,7 +214,8 @@ public final class DashboardActivity extends Activity {
             refreshWeather();
             refreshCalendar(clubOneCalendar);
             refreshCalendar(clubTwoCalendar);
-            crests.refreshIfDue(clubOneCalendar.matches, clubTwoCalendar.matches, false);
+            crests.refreshIfDue(clubOneCalendar.matches, clubOneCalendar.leagueSlug,
+                    clubTwoCalendar.matches, clubTwoCalendar.leagueSlug, false);
             handler.postDelayed(this, 60_000);
         }
     };
@@ -360,8 +364,11 @@ public final class DashboardActivity extends Activity {
                 for (int i = 0; i < rows.length(); i++) {
                     JSONObject row = rows.getJSONObject(i);
                     feed.matches.add(new IcsMatchParser.Match(row.getString("home"), row.getString("away"),
-                            row.getLong("startsAt"), row.getBoolean("hasTime"), row.optInt("round", -1)));
+                            row.getLong("startsAt"), row.getBoolean("hasTime"), row.optInt("round", -1),
+                            row.optString("competition", ""), row.optString("stage", "")));
                 }
+                if (feed.url.startsWith("https://ics.fixtur.es/") && !feed.matches.isEmpty()
+                        && feed.matches.get(0).competition.isEmpty()) feed.updatedAt = 0;
                 return;
             } catch (Exception e) { feed.matches.clear(); }
         }
@@ -399,7 +406,8 @@ public final class DashboardActivity extends Activity {
                         JSONObject row = new JSONObject();
                         row.put("home", match.home).put("away", match.away)
                                 .put("startsAt", match.startsAt).put("hasTime", match.hasTime)
-                                .put("round", match.round);
+                                .put("round", match.round).put("competition", match.competition)
+                                .put("stage", match.stage);
                         rows.put(row);
                     }
                     handler.post(() -> {
@@ -412,7 +420,8 @@ public final class DashboardActivity extends Activity {
                                 .remove(feed.key + "_calendar_ics")
                                 .putLong(feed.key + "_calendar_updated", feed.updatedAt).apply();
                         buildScreen();
-                        crests.refreshIfDue(clubOneCalendar.matches, clubTwoCalendar.matches, true);
+                        crests.refreshIfDue(clubOneCalendar.matches, clubOneCalendar.leagueSlug,
+                                clubTwoCalendar.matches, clubTwoCalendar.leagueSlug, true);
                     });
             } catch (Exception e) {
                 android.util.Log.w("LinarTV", "Team calendar refresh failed; keeping cached matches", e);
@@ -826,6 +835,20 @@ public final class DashboardActivity extends Activity {
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         LinearLayout content = popupContent();
         popupTitle(content, title);
+        EditText search = null;
+        if (labels.length > 30) {
+            search = new EditText(this);
+            search.setSingleLine(true);
+            search.setTextColor(ink);
+            search.setHintTextColor(muted);
+            search.setHint(tr("Szukaj ligi", "Search leagues"));
+            search.setPadding(px(18), 0, px(18), 0);
+            search.setBackground(shape(night ? 0xFF2B4268 : 0xFFE3E9F0,
+                    night ? 0xFF7899C3 : 0xFFB7C4D5, 15));
+            LinearLayout.LayoutParams searchParams = new LinearLayout.LayoutParams(-1, px(58));
+            searchParams.topMargin = px(16);
+            content.addView(search, searchParams);
+        }
         ScrollView scroll = new ScrollView(this);
         LinearLayout choices = new LinearLayout(this);
         choices.setOrientation(LinearLayout.VERTICAL);
@@ -845,6 +868,17 @@ public final class DashboardActivity extends Activity {
                 onChoose.accept(index);
             });
         }
+        if (search != null) search.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                String query = s.toString().trim().toLowerCase(Locale.ROOT);
+                for (int i = 0; i < labels.length; i++)
+                    choices.getChildAt(i).setVisibility(labels[i].toLowerCase(Locale.ROOT).contains(query)
+                            ? View.VISIBLE : View.GONE);
+                scroll.scrollTo(0, 0);
+            }
+            @Override public void afterTextChanged(Editable s) { }
+        });
         TextView close = setupButton(tr("Zamknij", "Close"));
         close.setGravity(Gravity.CENTER);
         close.setOnClickListener(v -> dialog.dismiss());
@@ -955,12 +989,16 @@ public final class DashboardActivity extends Activity {
         LinearLayout actions = new LinearLayout(this);
         actions.setGravity(Gravity.RIGHT);
         TextView remove = setupButton(tr("Usuń drugi klub", "Remove second club"));
+        remove.setGravity(Gravity.CENTER);
+        remove.setPadding(0, 0, 0, 0);
         remove.setOnClickListener(v -> {
             draft[1] = new CalendarFeed("club2", "", "", "", "");
             second.setText(tr("2. Dodaj drugi klub (opcjonalnie)", "2. Add a second club (optional)"));
         });
         actions.addView(remove, new LinearLayout.LayoutParams(px(260), px(54)));
         TextView save = setupButton(tr("Zapisz", "Save"));
+        save.setGravity(Gravity.CENTER);
+        save.setPadding(0, 0, 0, 0);
         LinearLayout.LayoutParams saveParams = new LinearLayout.LayoutParams(px(145), px(54));
         saveParams.leftMargin = px(14);
         actions.addView(save, saveParams);
@@ -983,76 +1021,68 @@ public final class DashboardActivity extends Activity {
         showChoiceDialog(tr("Wybierz region", "Choose a region"),
                 new String[]{tr("Polska", "Poland"), tr("Świat", "World")}, index -> {
                     if (index == 0) chooseLeague(slot, draft, button, setup, status);
-                    else showWorldCalendarSetup(slot, draft, button, setup, status);
+                    else chooseWorldLeague(slot, draft, button, setup, status);
                 });
     }
 
-    private void showWorldCalendarSetup(int slot, CalendarFeed[] draft, TextView button,
-                                        Dialog setup, TextView status) {
-        Dialog dialog = new Dialog(this);
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
-        LinearLayout content = popupContent();
-        popupTitle(content, tr("Klub ze świata", "World club"));
-        popupDescription(content, tr("Na próbę wpisz nazwę klubu i link ICS skopiowany z fixtur.es. Przykład: Arsenal.",
-                "For this trial, enter a club name and its ICS link copied from fixtur.es. Example: Arsenal."));
-        EditText club = new EditText(this);
-        club.setSingleLine(true);
-        club.setTextColor(ink);
-        club.setHintTextColor(muted);
-        club.setHint(tr("Nazwa klubu", "Club name"));
-        club.setText("Arsenal");
-        club.setPadding(px(20), 0, px(20), 0);
-        club.setBackground(shape(night ? 0xFF2B4268 : 0xFFE3E9F0,
-                night ? 0xFF7899C3 : 0xFFB7C4D5, 15));
-        content.addView(club, new LinearLayout.LayoutParams(-1, px(66)));
-        EditText url = new EditText(this);
-        url.setSingleLine(true);
-        url.setTextColor(ink);
-        url.setHintTextColor(muted);
-        url.setHint("https://ics.fixtur.es/v2/arsenal.ics");
-        url.setText("https://ics.fixtur.es/v2/arsenal.ics");
-        url.setPadding(px(20), 0, px(20), 0);
-        url.setBackground(shape(night ? 0xFF2B4268 : 0xFFE3E9F0,
-                night ? 0xFF7899C3 : 0xFFB7C4D5, 15));
-        LinearLayout.LayoutParams urlParams = new LinearLayout.LayoutParams(-1, px(66));
-        urlParams.topMargin = px(12);
-        content.addView(url, urlParams);
-        TextView message = popupDescription(content, "");
-        LinearLayout actions = new LinearLayout(this);
-        actions.setGravity(Gravity.END);
-        TextView close = setupButton(tr("Zamknij", "Close"));
-        close.setOnClickListener(v -> dialog.dismiss());
-        actions.addView(close, new LinearLayout.LayoutParams(px(150), px(58)));
-        TextView select = setupButton(tr("Wybierz", "Select"));
-        LinearLayout.LayoutParams selectParams = new LinearLayout.LayoutParams(px(150), px(58));
-        selectParams.leftMargin = px(14);
-        actions.addView(select, selectParams);
-        content.addView(actions);
-        select.setOnClickListener(v -> {
-            String name = club.getText().toString().trim();
-            String address = url.getText().toString().trim();
-            if (name.isEmpty() || !address.matches("https://ics\\.fixtur\\.es/v2/[a-zA-Z0-9_-]+\\.ics")) {
-                message.setText(tr("Wpisz klub i poprawny link ICS z fixtur.es.",
-                        "Enter a club and a valid fixtur.es ICS link."));
-                return;
+    private void chooseWorldLeague(int slot, CalendarFeed[] draft, TextView button,
+                                   Dialog setup, TextView status) {
+        status.setText(tr("Pobieranie lig fixtur.es…", "Loading fixtur.es leagues…"));
+        new Thread(() -> {
+            try {
+                List<FixturCatalogClient.League> leagues = FixturCatalogClient.leagues();
+                handler.post(() -> {
+                    if (!setup.isShowing()) return;
+                    status.setText("");
+                    String[] names = new String[leagues.size()];
+                    for (int i = 0; i < names.length; i++) names[i] = leagues.get(i).name;
+                    showChoiceDialog(tr("Świat · wybierz ligę", "World · choose a league"), names,
+                            index -> chooseWorldClub(slot, leagues.get(index), draft, button, setup, status));
+                });
+            } catch (Exception e) {
+                android.util.Log.w("LinarTV", "fixtur.es league catalog failed", e);
+                handler.post(() -> { if (setup.isShowing()) status.setText(tr(
+                        "Nie udało się pobrać lig fixtur.es. Spróbuj ponownie.",
+                        "Could not load fixtur.es leagues. Try again.")); });
             }
-            int other = 1 - slot;
-            if (draft[other].configured() && draft[other].url.equals(address)) {
-                message.setText(tr("Ten klub jest już wybrany.", "This club is already selected."));
-                return;
+        }, "world-leagues").start();
+    }
+
+    private void chooseWorldClub(int slot, FixturCatalogClient.League league,
+                                 CalendarFeed[] draft, TextView button, Dialog setup, TextView status) {
+        status.setText(tr("Pobieranie drużyn…", "Loading teams…"));
+        new Thread(() -> {
+            try {
+                List<FixturCatalogClient.Team> teams = FixturCatalogClient.teams(league);
+                handler.post(() -> {
+                    if (!setup.isShowing()) return;
+                    if (teams.isEmpty()) { status.setText(tr("Brak drużyn w tej lidze.",
+                            "No teams in this league.")); return; }
+                    status.setText("");
+                    for (FixturCatalogClient.Team team : teams)
+                        crests.registerFixturTeam(team.name, team.logoUrl);
+                    String[] names = new String[teams.size()];
+                    for (int i = 0; i < names.length; i++) names[i] = teams.get(i).name;
+                    showChoiceDialog(league.name, names, index -> {
+                        FixturCatalogClient.Team team = teams.get(index);
+                        if (draft[1 - slot].configured()
+                                && draft[1 - slot].url.equals(team.calendarUrl())) {
+                            status.setText(tr("Ten klub jest już wybrany.", "This club is already selected."));
+                            return;
+                        }
+                        draft[slot] = new CalendarFeed("club" + (slot + 1), team.calendarUrl(),
+                                team.name, league.name, "fixtur.es");
+                        button.setText((slot + 1) + ". " + team.name + " · " + league.name);
+                        button.requestFocusFromTouch();
+                    });
+                });
+            } catch (Exception e) {
+                android.util.Log.w("LinarTV", "fixtur.es team catalog failed", e);
+                handler.post(() -> { if (setup.isShowing()) status.setText(tr(
+                        "Nie udało się pobrać drużyn. Spróbuj ponownie.",
+                        "Could not load teams. Try again.")); });
             }
-            draft[slot] = new CalendarFeed("club" + (slot + 1), address, name,
-                    "fixtur.es", "fixtur.es");
-            button.setText((slot + 1) + ". " + name + " · fixtur.es");
-            status.setText("");
-            dialog.dismiss();
-            if (setup.isShowing()) button.requestFocus();
-        });
-        dialog.setContentView(content);
-        dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
-        showDialogWithBlur(dialog);
-        dialog.getWindow().setLayout(px(840), -2);
-        club.requestFocus();
+        }, "world-teams").start();
     }
 
     private void chooseLeague(int slot, CalendarFeed[] draft, TextView button,
@@ -1277,13 +1307,17 @@ public final class DashboardActivity extends Activity {
             placeIcon.setPadding(px(7), px(4), px(7), px(4));
             place(placeIcon, x + 28, y + 22, 42, 36);
         }
-        if (match != null && match.round > 0) {
-            TextView leagueLabel = text(league + tr(" - Kolejka ", " - Round ") + match.round, 18, color, false,
+        String competition = match != null && !match.competition.isEmpty() ? match.competition
+                : "fixtur.es".equals(league) ? tr("Rozgrywki", "Competition") : league;
+        String stage = match != null && !match.stage.isEmpty() ? " - " + match.stage
+                : match != null && match.round > 0 ? tr(" - Kolejka ", " - Round ") + match.round : "";
+        if (!stage.isEmpty()) {
+            TextView leagueLabel = text(competition + stage, 18, color, false,
                     x + 84, y + 22, 240, 35);
             leagueLabel.setAutoSizeTextTypeUniformWithConfiguration(
                     px(15), px(18), 1, TypedValue.COMPLEX_UNIT_PX);
         } else {
-            text(league, 20, color, false, x + (match == null ? 155 : 84), y + 22,
+            text(competition, 20, color, false, x + (match == null ? 155 : 84), y + 22,
                     match == null ? 169 : 240, 35);
         }
         refreshStamp(feed.updatedAt, x + 330, y + 19, 144);
@@ -1300,14 +1334,15 @@ public final class DashboardActivity extends Activity {
             return;
         }
         String crestLeague = "ekstraklasa".equals(feed.leagueSlug) ? "ekstraklasa"
-                : "3-liga-grupa-4".equals(feed.leagueSlug) ? "iii_liga" : "other";
+                : "3-liga-grupa-4".equals(feed.leagueSlug) ? "iii_liga"
+                : "fixtur.es".equals(feed.leagueSlug) ? "fixtur.es" : "other";
         crestBadge(match.home, crestLeague, x + 14, y + 145);
         crestBadge(match.away, crestLeague, x + 150, y + 145);
         String time = match.hasTime ? new SimpleDateFormat("HH:mm", PL).format(new Date(match.startsAt)) : "—:—";
-        text(time, 61, color, true, x + 290, y + 163, 190, 75).setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        text(time, 61, color, true, x + 290, y + 163, 190, 75).setGravity(Gravity.CENTER);
         if (live) {
             TextView liveBadge = text(tr("Teraz!", "Live!"), 20, 0xFFFFFFFF, true,
-                    x + 367, y + 229, 110, 34);
+                    x + 330, y + 242, 110, 30);
             liveBadge.setGravity(Gravity.CENTER);
             liveBadge.setBackground(shape(0xFFD8283F, 0xFFFF9AA6, 15));
         } else {
@@ -2417,7 +2452,11 @@ public final class DashboardActivity extends Activity {
                 && !screensaverChoices.contains("custom")) screensaverChoices.add("custom");
         if (screensaverChoices.isEmpty()) return;
         screensaverIndex = 0;
+        screensaverPreviousFocus = getCurrentFocus();
         screensaver = new FrameLayout(this);
+        screensaver.setElevation(px(100));
+        screensaver.setFocusable(true);
+        screensaver.setFocusableInTouchMode(true);
         screensaver.setBackgroundColor(0xFF081126);
         screensaverImage = new ImageView(this);
         screensaverImage.setScaleType(ImageView.ScaleType.CENTER_CROP);
@@ -2446,6 +2485,7 @@ public final class DashboardActivity extends Activity {
         screensaver.addView(screensaverInfo);
         root.addView(screensaver, new FrameLayout.LayoutParams(-1, -1));
         screensaverActive = true;
+        screensaver.requestFocus();
         showScreensaverSlide();
         handler.removeCallbacks(advanceScreensaver);
         if (screensaverActive) handler.postDelayed(advanceScreensaver, SCREENSAVER_SLIDE_MS);
@@ -2505,6 +2545,9 @@ public final class DashboardActivity extends Activity {
         screensaver = null;
         screensaverImage = null;
         screensaverInfo = null;
+        if (screensaverPreviousFocus != null && screensaverPreviousFocus.isAttachedToWindow())
+            screensaverPreviousFocus.requestFocus();
+        screensaverPreviousFocus = null;
     }
 
     private File wallpaperFolder() {

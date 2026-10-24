@@ -48,6 +48,7 @@ Signed releases: see [docs/RELEASING.md](docs/RELEASING.md).
 ### Credits
 - Inspired by and started inside [Clean Your TV](https://cleanyour.tv/) by Gathin (MIT).
 - Fixtures: [kalendarzeligowe.pl](https://kalendarzeligowe.pl) — used with the site owner's permission.
+- World fixtures, club catalog and crests (experimental integration): [fixtur.es](https://fixtur.es/), De Agendamakers B.V. Provider permission is pending before a public release of this integration. Competition names and available league rounds come from the provider's public pages; cup stages may be unavailable.
 - Weather data: [Open-Meteo.com](https://open-meteo.com) (CC BY 4.0).
 - Weather Icons font by Erik Flowers (SIL OFL 1.1).
 - Weather symbols follow Open-Meteo WMO codes, including separate day and night variants.

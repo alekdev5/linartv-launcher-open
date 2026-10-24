@@ -6,7 +6,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.List;
 
-/** Reads a calendar URL copied by the user from fixtur.es. */
+/** Reads the selected fixtur.es calendar and supplements its public competition metadata. */
 final class FixturIcsClient {
     static List<IcsMatchParser.Match> teamMatches(String url, long fromMillis) throws Exception {
         URL target = new URL(url);
@@ -34,7 +34,8 @@ final class FixturIcsClient {
                 String ics = bytes.toString("UTF-8");
                 if (!ics.startsWith("BEGIN:VCALENDAR") || !ics.contains("END:VCALENDAR"))
                     throw new IllegalStateException("Invalid calendar");
-                return IcsMatchParser.parse(ics, null, fromMillis);
+                String slug = target.getPath().substring("/v2/".length()).replaceFirst("\\.ics$", "");
+                return FixturMatchMetadata.enrich(IcsMatchParser.parse(ics, null, fromMillis), slug);
             }
         } finally {
             connection.disconnect();

@@ -17,7 +17,7 @@
         <package android:name="com.spotify.tv.android" />
         <package android:name="com.tvp.vodtv.tv" />
     </queries>
-    <application android:label="LinarTV" android:icon="@drawable/ic_linar_tv"
+    <application android:label="LinarTV Open" android:icon="@drawable/ic_linar_tv"
         android:banner="@drawable/banner_linar_tv"
         android:theme="@android:style/Theme.Material.NoActionBar" android:usesCleartextTraffic="true">
         <activity android:name=".DashboardActivity" android:exported="true" android:screenOrientation="landscape">
