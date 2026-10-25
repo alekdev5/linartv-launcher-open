@@ -13,7 +13,12 @@
 
 <p align="center"><a href="#english">English</a> · <a href="#polski">Polski</a></p>
 
-<p align="center"><img alt="LinarTV home screen" src="docs/images/linartv-home.png" width="860"></p>
+<table align="center">
+  <tr>
+    <td align="center"><img alt="LinarTV home screen with one club / ekran główny LinarTV z jednym klubem" src="docs/images/linartv-home-1-club.png" width="420"><br><sub>One club · Jeden klub</sub></td>
+    <td align="center"><img alt="LinarTV home screen with two clubs / ekran główny LinarTV z dwoma klubami" src="docs/images/linartv-home-2-clubs.png" width="420"><br><sub>Two clubs · Dwa kluby</sub></td>
+  </tr>
+</table>
 
 ---
 
