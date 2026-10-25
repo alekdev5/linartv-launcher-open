@@ -102,6 +102,13 @@ public final class DashboardActivity extends Activity {
     private float scale;
     private FrameLayout root;
     private TextView clock;
+    private SpotifyNowPlaying spotify;
+    private FrameLayout spotifyBar;
+    private NowPlayingTicker spotifyTitle;
+    private ImageView spotifyCover;
+    private String spotifyTrack, spotifyPerformer;
+    private Bitmap spotifyArtwork;
+    private boolean spotifyPlaying;
     private TextView date;
     private boolean night;
     private boolean dashboardVisible;
@@ -297,6 +304,12 @@ public final class DashboardActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
+        if (spotify == null) spotify = new SpotifyNowPlaying(this, (title, artist, cover, playing) -> {
+            spotifyTrack = title; spotifyPerformer = artist;
+            spotifyArtwork = cover; spotifyPlaying = playing;
+            updateSpotifyBar();
+        });
+        spotify.start();
         dashboardVisible = true;
         handler.removeCallbacks(updateTime);
         updateTime.run();
@@ -305,6 +318,7 @@ public final class DashboardActivity extends Activity {
     }
 
     @Override protected void onPause() {
+        if (spotify != null) spotify.stop();
         dashboardVisible = false;
         handler.removeCallbacks(updateTime);
         handler.removeCallbacks(updateMatchCards);
@@ -633,6 +647,7 @@ public final class DashboardActivity extends Activity {
         clock = text("", 144, Color.WHITE, false, 60, 26, 590, 161);
         date = text("", 37, Color.WHITE, false, 62, 189, 610, 55);
 
+        renderSpotifyBar();
         circleAction(R.drawable.ic_toolbar_television, tr("Oglądaj telewizję", "Watch TV"), 1338,
                 () -> launch("org.droidtv.playtv"));
         circleAction(R.drawable.ic_toolbar_sources, tr("Źródła", "Inputs"), 1438, this::showSources);
@@ -751,6 +766,12 @@ public final class DashboardActivity extends Activity {
         LinearLayout.LayoutParams aboutParams = new LinearLayout.LayoutParams(0, px(46), 1);
         aboutParams.leftMargin = px(12);
         footer.addView(about, aboutParams);
+        TextView spotifyAccess = setupButton("Spotify");
+        spotifyAccess.setGravity(Gravity.CENTER);
+        spotifyAccess.setOnClickListener(v -> enableSpotifyPanel());
+        LinearLayout.LayoutParams spotifyParams = new LinearLayout.LayoutParams(0, px(46), 1);
+        spotifyParams.leftMargin = px(12);
+        footer.addView(spotifyAccess, spotifyParams);
         addSettingsControl(content, footer, 46);
         dialog.setContentView(content, new ViewGroup.LayoutParams(-1, -1));
         dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
@@ -1508,18 +1529,67 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
         stamp.setEllipsize(null);
     }
 
+
+    private void renderSpotifyBar() {
+        spotifyBar = new FrameLayout(this);
+        spotifyBar.setBackground(shape(panel, outline, 24));
+        spotifyBar.setClipToOutline(true);
+        spotifyBar.setFocusable(true);
+        spotifyBar.setClickable(true);
+        spotifyBar.setOnClickListener(v -> launch("com.spotify.tv.android"));
+        View glow = tileGlow(430, 45, 880, 76, 24);
+        spotifyBar.setOnFocusChangeListener((v, focused) -> showTileGlow(glow, focused));
+        spotifyCover = new ImageView(this);
+        spotifyCover.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        spotifyCover.setBackground(shape(0x221DB954, Color.TRANSPARENT, 12));
+        FrameLayout.LayoutParams cover = new FrameLayout.LayoutParams(px(60), px(60));
+        cover.leftMargin = px(8); cover.topMargin = px(8);
+        spotifyBar.addView(spotifyCover, cover);
+        spotifyTitle = new NowPlayingTicker(this, px(30), ink);
+        FrameLayout.LayoutParams title = new FrameLayout.LayoutParams(px(770), -1);
+        title.leftMargin = px(84);
+        spotifyBar.addView(spotifyTitle, title);
+        place(spotifyBar, 430, 45, 880, 76);
+        updateSpotifyBar();
+    }
+
+    private void updateSpotifyBar() {
+        if (spotifyBar == null) return;
+        boolean visible = spotifyTrack != null;
+        if (!visible && spotifyBar.hasFocus()) {
+            if (dockExpand != null) dockExpand.requestFocus();
+            else root.requestFocus();
+        }
+        spotifyBar.setVisibility(visible ? View.VISIBLE : View.GONE);
+        if (!visible) return;
+        spotifyTitle.setSong(spotifyPerformer, spotifyTrack);
+        spotifyCover.setImageBitmap(spotifyArtwork);
+        spotifyBar.setContentDescription("Spotify: " + (spotifyPerformer == null ? "" : spotifyPerformer + ", ") + spotifyTrack);
+    }
+
+    private void enableSpotifyPanel() {
+        showChoiceDialog("Spotify", new String[]{
+                tr("Włącz dostęp do odtwarzanej muzyki", "Enable now playing access")}, which -> {
+            showMessageDialog("Spotify", tr(
+                    "W ustawieniach systemowych zezwól LinarTV na dostęp do powiadomień. Launcher odczytuje tylko sesję Spotify; nie zapisuje powiadomień.",
+                    "Allow LinarTV notification access in system settings. Only the Spotify session is read; notifications are not stored."));
+            openSettings("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS");
+        });
+    }
+
     private void circleAction(int icon, String description, int x, Runnable click) {
         View glow = tileGlow(x, 45, 76, 76, 38);
         FrameLayout button = new FrameLayout(this);
         place(button, x, 45, 76, 76);
         ImageView symbol = new ImageView(this);
         symbol.setImageResource(icon);
+        symbol.setColorFilter(ink);
         symbol.setScaleType(ImageView.ScaleType.FIT_CENTER);
         button.addView(symbol, new FrameLayout.LayoutParams(px(34), px(34), Gravity.CENTER));
         button.setContentDescription(description);
         button.setFocusable(true);
         button.setClickable(true);
-        button.setBackground(shape(TILE_BG, 0x556D7ECC, 38));
+        button.setBackground(shape(panel, outline, 38));
         button.setOnFocusChangeListener((v, focused) -> {
             showTileGlow(glow, focused);
         });
