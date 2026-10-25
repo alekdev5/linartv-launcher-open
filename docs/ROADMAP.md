@@ -1,8 +1,10 @@
 # Plan / Roadmap
 
+Aktualny zakres Open (25.10.2026): wyłącznie kalendarzeligowe.pl — Ekstraklasa, I liga, II liga i cztery grupy III ligi. Obsługa fixtur.es została usunięta z kodu aplikacji do czasu otrzymania zgody. Poniższe notatki o niższych ligach i fixtur.es dotyczą przyszłych, obecnie niedostępnych funkcji.
+
 ## 0.1.0 — pierwsze wydanie
 - [x] Wybór jednego lub dwóch klubów z katalogu kalendarzeligowe.pl (za zgodą właściciela serwisu).
-- [x] Prognoza i aktualne warunki z Open-Meteo dla dowolnego miasta (bez klucza API).
+- [x] Prognoza, aktualne warunki modelowe i ikony IMGW dla miast w Polsce; geokodowanie Open-Meteo służy tylko do wyszukania współrzędnych.
 - [x] Galeria tapet, wysyłanie zdjęć z telefonu (kod z limitem prób), wygaszacz.
 - [x] Podpisane APK i instalacja przez Downloader.
 - [ ] Test na kilku urządzeniach Android TV / Google TV.
@@ -26,7 +28,7 @@ Użytkownik sam decyduje, które aplikacje są widoczne na pierwszym ekranie i w
 ## 0.3.0 — mecze z całego świata (fixtur.es)
 Drugie źródło terminarzy obok kalendarzeligowe.pl: [fixtur.es](https://fixtur.es/) (De Agendamakers B.V.) — darmowe kalendarze ICS dla drużyn z lig na całym świecie. Otwiera LinarTV na rynki poza Polską.
 
-Uzgodniona reguła wyboru źródła: **Polska → API kalendarzeligowe.pl; Świat → kalendarze ICS fixtur.es**. Kreator zaczyna się od wyboru „Polska / Świat”, potem pokazuje listę lig i klubów. Dla długiej listy lig jest wyszukiwanie. Część „Świat” pobiera też herby z fixtur.es. Można dodać jeden lub dwa kluby. Integracja pozostaje testowa do czasu uzgodnienia warunków z dostawcą.
+Docelowy pomysł po uzyskaniu zgody: **Polska → API kalendarzeligowe.pl; Świat → kalendarze ICS fixtur.es**. Obecnie kreator Open przechodzi bezpośrednio do siedmiu obsługiwanych polskich lig; nie zawiera wyboru „Świat” ani połączeń z fixtur.es.
 
 Stan rozpoznania (24.10.2026): w polskiej części serwisu są Ekstraklasa i I liga; niższych lig nie znaleziono. Kalendarz klubowy obejmuje też puchary i sparingi. Część odległych terminów ma godzinę 01:00/02:00 — wygląda na datę bez potwierdzonej godziny, więc aplikacja nie powinna pokazywać jej jako pewnej godziny meczu. Właściciel projektu wysłał już pytanie do operatora o wykorzystanie źródła.
 

@@ -150,6 +150,7 @@ public final class DashboardActivity extends Activity {
         }
     }
     private Typeface weatherTypeface;
+    private ImgwIconRepository weatherIcons;
     private JSONObject forecast;
     private long forecastUpdatedAt;
     private long forecastAttemptedAt;
@@ -179,7 +180,7 @@ public final class DashboardActivity extends Activity {
             this.key = key; this.url = url; this.club = club; this.league = league;
             this.leagueSlug = leagueSlug; this.requiredDescription = null;
         }
-        boolean configured() { return !url.isEmpty() && !club.isEmpty(); }
+        boolean configured() { return CalendarScope.accepts(url) && !club.isEmpty(); }
     }
     private CalendarFeed clubOneCalendar;
     private CalendarFeed clubTwoCalendar;
@@ -268,15 +269,19 @@ public final class DashboardActivity extends Activity {
         forecastUpdatedAt = saved.getLong("weather_updated", 0);
         try { forecast = new JSONObject(saved.getString("weather_json", "")); }
         catch (Exception ignored) { forecast = null; }
-        if (forecast != null && !"Open-Meteo".equals(forecast.optString("provider"))) {
+        if (forecast != null && !"IMGW".equals(forecast.optString("provider"))) {
             forecast = null;
             forecastUpdatedAt = 0;
         }
         if (forecast != null && (forecast.optJSONArray("hourly") == null
-                || forecast.optInt("icon_format") != 2)) forecastUpdatedAt = 0;
+                || forecast.optInt("icon_format") != 3)) forecastUpdatedAt = 0;
         cityName = saved.getString("city_name", "Kraków");
         cityLatitude = Double.longBitsToDouble(saved.getLong("city_lat", Double.doubleToLongBits(50.0614)));
         cityLongitude = Double.longBitsToDouble(saved.getLong("city_lon", Double.doubleToLongBits(19.9366)));
+        if (cityLatitude < 49 || cityLatitude > 55 || cityLongitude < 14 || cityLongitude > 24.2) {
+            cityName = "Kraków"; cityLatitude = 50.0614; cityLongitude = 19.9366;
+        }
+        weatherIcons = new ImgwIconRepository(this);
         if (forecast != null && (!cityName.equals(forecast.optString("city"))
                 || forecast.optJSONObject("current") == null)) forecastUpdatedAt = 0;
         crests = new CrestRepository(this, this::updateCrestViews);
@@ -333,7 +338,7 @@ public final class DashboardActivity extends Activity {
         long requestedLocationVersion = weatherLocationVersion;
         new Thread(() -> {
             JSONObject result = null;
-            try { result = PublicForecastClient.fetch(requestedLatitude, requestedLongitude).put("city", requestedCity); }
+            try { result = ImgwForecastClient.fetch(requestedLatitude, requestedLongitude, requestedCity); }
             catch (Exception e) {
                 android.util.Log.w("LinarTV", "Weather refresh failed", e);
                 result = null;
@@ -388,6 +393,8 @@ public final class DashboardActivity extends Activity {
 
     private void restoreCalendar(CalendarFeed feed, SharedPreferences saved) {
         if (!feed.configured()) return;
+        // Older caches discarded competition metadata and could label cup ties as league rounds.
+        if (saved.getInt(feed.key + "_calendar_format", 0) != LeagueCatalogClient.CACHE_FORMAT) return;
         feed.updatedAt = saved.getLong(feed.key + "_calendar_updated", 0);
         String apiCache = saved.getString(feed.key + "_calendar_matches", "");
         if (!apiCache.isEmpty()) {
@@ -399,8 +406,6 @@ public final class DashboardActivity extends Activity {
                             row.getLong("startsAt"), row.getBoolean("hasTime"), row.optInt("round", -1),
                             row.optString("competition", ""), row.optString("stage", "")));
                 }
-                if (feed.url.startsWith("https://ics.fixtur.es/") && !feed.matches.isEmpty()
-                        && feed.matches.get(0).competition.isEmpty()) feed.updatedAt = 0;
                 return;
             } catch (Exception e) { feed.matches.clear(); }
         }
@@ -430,9 +435,7 @@ public final class DashboardActivity extends Activity {
         new Thread(() -> {
             try {
                     long from = System.currentTimeMillis() - CALENDAR_PARSE_LOOKBACK_MS;
-                    List<IcsMatchParser.Match> matches = feed.url.startsWith("https://ics.fixtur.es/")
-                            ? FixturIcsClient.teamMatches(feed.url, from)
-                            : LeagueCatalogClient.teamMatches(feed.url, from);
+                    List<IcsMatchParser.Match> matches = LeagueCatalogClient.teamMatches(feed.url, from);
                     JSONArray rows = new JSONArray();
                     for (IcsMatchParser.Match match : matches) {
                         JSONObject row = new JSONObject();
@@ -449,6 +452,7 @@ public final class DashboardActivity extends Activity {
                         feed.updatedAt = System.currentTimeMillis();
                         feed.selected = 0;
                         getPreferences(MODE_PRIVATE).edit().putString(feed.key + "_calendar_matches", rows.toString())
+                                .putInt(feed.key + "_calendar_format", LeagueCatalogClient.CACHE_FORMAT)
                                 .remove(feed.key + "_calendar_ics")
                                 .putLong(feed.key + "_calendar_updated", feed.updatedAt).apply();
                         finishCalendarSettingsRefresh(feed);
@@ -1142,13 +1146,13 @@ public final class DashboardActivity extends Activity {
         status.setText(tr("Szukanie miasta…", "Searching for city…"));
         results.removeAllViews();
         new Thread(() -> {
-            List<PublicForecastClient.Place> places;
-            try { places = PublicForecastClient.searchPlaces(name, english ? "en" : "pl"); }
+            List<PolishCityClient.Place> places;
+            try { places = PolishCityClient.searchPlaces(name, english ? "en" : "pl"); }
             catch (Exception e) {
                 android.util.Log.w("LinarTV", "City search failed", e);
                 places = null;
             }
-            final List<PublicForecastClient.Place> found = places;
+            final List<PolishCityClient.Place> found = places;
             handler.post(() -> {
                 if (isFinishing() || isDestroyed() || !dialog.isShowing()) return;
                 if (found == null) {
@@ -1161,7 +1165,7 @@ public final class DashboardActivity extends Activity {
                     return;
                 }
                 status.setText(tr("Wybierz właściwe miasto:", "Choose the correct city:"));
-                for (PublicForecastClient.Place place : found) {
+                for (PolishCityClient.Place place : found) {
                     TextView item = setupButton(place.label());
                     LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, px(62));
                     params.bottomMargin = px(8);
@@ -1283,7 +1287,7 @@ public final class DashboardActivity extends Activity {
         close.requestFocus();
     }
 
-    private void saveCity(PublicForecastClient.Place place) {
+    private void saveCity(PolishCityClient.Place place) {
         weatherLocationVersion++;
         cityName = place.name;
         cityLatitude = place.latitude;
@@ -1358,8 +1362,8 @@ public final class DashboardActivity extends Activity {
         status.setMinHeight(px(46));
         status.setGravity(Gravity.CENTER_VERTICAL);
         content.addView(status);
-        first.setOnClickListener(v -> chooseRegion(0, draft, first, dialog, status));
-        second.setOnClickListener(v -> chooseRegion(1, draft, second, dialog, status));
+first.setOnClickListener(v -> chooseLeague(0, draft, first, dialog, status));
+second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
         LinearLayout actions = new LinearLayout(this);
         actions.setGravity(Gravity.RIGHT);
         TextView remove = setupButton(tr("Usuń drugi klub", "Remove second club"));
@@ -1395,74 +1399,6 @@ public final class DashboardActivity extends Activity {
         first.requestFocusFromTouch();
     }
 
-    private void chooseRegion(int slot, CalendarFeed[] draft, TextView button,
-                              Dialog setup, TextView status) {
-        showChoiceDialog(tr("Wybierz region", "Choose a region"),
-                new String[]{tr("Polska", "Poland"), tr("Świat", "World")}, index -> {
-                    if (index == 0) chooseLeague(slot, draft, button, setup, status);
-                    else chooseWorldLeague(slot, draft, button, setup, status);
-                });
-    }
-
-    private void chooseWorldLeague(int slot, CalendarFeed[] draft, TextView button,
-                                   Dialog setup, TextView status) {
-        status.setText(tr("Pobieranie lig fixtur.es…", "Loading fixtur.es leagues…"));
-        new Thread(() -> {
-            try {
-                List<FixturCatalogClient.League> leagues = FixturCatalogClient.leagues();
-                handler.post(() -> {
-                    if (!setup.isShowing()) return;
-                    status.setText("");
-                    String[] names = new String[leagues.size()];
-                    for (int i = 0; i < names.length; i++) names[i] = leagues.get(i).name;
-                    showChoiceDialog(tr("Świat · wybierz ligę", "World · choose a league"), names,
-                            index -> chooseWorldClub(slot, leagues.get(index), draft, button, setup, status));
-                });
-            } catch (Exception e) {
-                android.util.Log.w("LinarTV", "fixtur.es league catalog failed", e);
-                handler.post(() -> { if (setup.isShowing()) status.setText(tr(
-                        "Nie udało się pobrać lig fixtur.es. Spróbuj ponownie.",
-                        "Could not load fixtur.es leagues. Try again.")); });
-            }
-        }, "world-leagues").start();
-    }
-
-    private void chooseWorldClub(int slot, FixturCatalogClient.League league,
-                                 CalendarFeed[] draft, TextView button, Dialog setup, TextView status) {
-        status.setText(tr("Pobieranie drużyn…", "Loading teams…"));
-        new Thread(() -> {
-            try {
-                List<FixturCatalogClient.Team> teams = FixturCatalogClient.teams(league);
-                handler.post(() -> {
-                    if (!setup.isShowing()) return;
-                    if (teams.isEmpty()) { status.setText(tr("Brak drużyn w tej lidze.",
-                            "No teams in this league.")); return; }
-                    status.setText("");
-                    for (FixturCatalogClient.Team team : teams)
-                        crests.registerFixturTeam(team.name, team.logoUrl);
-                    String[] names = new String[teams.size()];
-                    for (int i = 0; i < names.length; i++) names[i] = teams.get(i).name;
-                    showChoiceDialog(league.name, names, index -> {
-                        FixturCatalogClient.Team team = teams.get(index);
-                        if (draft[1 - slot].configured()
-                                && draft[1 - slot].url.equals(team.calendarUrl())) {
-                            status.setText(tr("Ten klub jest już wybrany.", "This club is already selected."));
-                            return;
-                        }
-                        draft[slot] = new CalendarFeed("club" + (slot + 1), team.calendarUrl(),
-                                team.name, league.name, "fixtur.es");
-                        button.setText((slot + 1) + ". " + team.name + " · " + league.name);
-                        button.requestFocusFromTouch();
-                    });
-                });
-            } catch (Exception e) {
-                android.util.Log.w("LinarTV", "fixtur.es team catalog failed", e);
-                handler.post(() -> { if (setup.isShowing()) status.setText(tr(
-                        "Nie udało się pobrać drużyn. Spróbuj ponownie.",
-                        "Could not load teams. Try again.")); });
-            }
-        }, "world-teams").start();
-    }
 
     private void chooseLeague(int slot, CalendarFeed[] draft, TextView button,
                               Dialog setup, TextView status) {
@@ -1689,7 +1625,7 @@ public final class DashboardActivity extends Activity {
             place(placeIcon, x + 28, y + 22, 42, 36);
         }
         String competition = match != null && !match.competition.isEmpty() ? match.competition
-                : "fixtur.es".equals(league) ? tr("Rozgrywki", "Competition") : league;
+                : match == null ? league : tr("Rozgrywki", "Competition");
         String stage = match != null && !match.stage.isEmpty() ? " - " + match.stage
                 : match != null && match.round > 0 ? tr(" - Kolejka ", " - Round ") + match.round : "";
         if (!stage.isEmpty()) {
@@ -1714,9 +1650,7 @@ public final class DashboardActivity extends Activity {
                     x + 29, y + 176, 445, 50);
             return;
         }
-        String crestLeague = "ekstraklasa".equals(feed.leagueSlug) ? "ekstraklasa"
-                : "3-liga-grupa-4".equals(feed.leagueSlug) ? "iii_liga"
-                : "fixtur.es".equals(feed.leagueSlug) ? "fixtur.es" : "other";
+        String crestLeague = CrestRepository.leagueKey(feed.leagueSlug);
         crestBadge(match.home, crestLeague, x + 14, y + 145);
         crestBadge(match.away, crestLeague, x + 150, y + 145);
         String time = match.hasTime ? new SimpleDateFormat("HH:mm", PL).format(new Date(match.startsAt)) : "—:—";
@@ -1837,7 +1771,13 @@ public final class DashboardActivity extends Activity {
     }
 
     private void placeForecastIcon(String code, int x, int y, int width, int height) {
-        place(new WeatherIcon(code), x, y, width, height);
+        View fallback = new WeatherIcon(imgwFallbackCondition(code));
+        place(fallback, x, y, width, height);
+        ImageView image = new ImageView(this);
+        image.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        image.setVisibility(View.INVISIBLE);
+        place(image, x, y, width, height);
+        weatherIcons.bind(code, image, fallback);
     }
 
     private void renderWeatherCard(int x) {
@@ -1946,8 +1886,8 @@ public final class DashboardActivity extends Activity {
         addWeatherMetrics(content);
         detailLine(content, tr("Słońce i Księżyc", "Sun and Moon"), 24, true, detailText);
         addAstronomyCards(content);
-        detailLine(content, tr("Dane pogodowe: Open-Meteo.com (CC BY 4.0).",
-                "Weather data: Open-Meteo.com (CC BY 4.0)."), 14, false, detailMuted);
+        detailLine(content, tr("Źródłem pochodzenia danych jest Instytut Meteorologii i Gospodarki Wodnej – Państwowy Instytut Badawczy. Dane IMGW-PIB zostały przetworzone.",
+                "Data source: IMGW-PIB. The data have been processed."), 14, false, detailMuted);
         TextView close = new TextView(this);
         close.setText(tr("Zamknij", "Close"));
         close.setTextColor(detailText);
@@ -2132,13 +2072,29 @@ public final class DashboardActivity extends Activity {
         }
     }
 
+    private static String imgwFallbackCondition(String code) {
+        String light = code.endsWith("n") ? "n" : "d";
+        if (code.contains("z80") || code.contains("z60")) return light + "61";
+        if (code.startsWith("n0")) return light + "0";
+        if (code.startsWith("n1") || code.startsWith("n2")) return light + "2";
+        return light + "3";
+    }
+
     private View detailWeatherIcon(String code) {
-        return new WeatherIcon(code);
+        FrameLayout frame = new FrameLayout(this);
+        View fallback = new WeatherIcon(imgwFallbackCondition(code));
+        frame.addView(fallback, new FrameLayout.LayoutParams(-1, -1));
+        ImageView image = new ImageView(this);
+        image.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        image.setVisibility(View.INVISIBLE);
+        frame.addView(image, new FrameLayout.LayoutParams(-1, -1));
+        weatherIcons.bind(code, image, fallback);
+        return frame;
     }
 
     private void addWeatherMetrics(LinearLayout content) {
         String[] labels = {tr("Wiatr", "Wind"), tr("Wilgotność", "Humidity"),
-                tr("Ciśnienie", "Pressure"), tr("Opad", "Precipitation")};
+                tr("Ciśnienie", "Pressure"), tr("Opad (10 min)", "Precipitation (10 min)")};
         String[] values = {observed("wind", " m/s"),
                 observed("humidity", "%"), observed("pressure", " hPa"),
                 observed("precipitation", " mm")};
@@ -2174,8 +2130,8 @@ public final class DashboardActivity extends Activity {
         JSONObject sun = forecast == null ? null : forecast.optJSONObject("sun");
         TimeZone weatherZone = TimeZone.getTimeZone(
                 forecast == null ? "Europe/Warsaw" : forecast.optString("timezone", "Europe/Warsaw"));
-        Date sunrise = sun == null ? null : PublicForecastClient.parseTime(sun.optString("Sunrise"), weatherZone);
-        Date sunset = sun == null ? null : PublicForecastClient.parseTime(sun.optString("Sunset"), weatherZone);
+        Date sunrise = sun == null ? null : ImgwForecastClient.parseTime(sun.optString("Sunrise"));
+        Date sunset = sun == null ? null : ImgwForecastClient.parseTime(sun.optString("Sunset"));
         SimpleDateFormat clockFormat = new SimpleDateFormat("HH:mm", PL);
         clockFormat.setTimeZone(weatherZone);
         String rise = sunrise == null ? "—" : clockFormat.format(sunrise);

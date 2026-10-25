@@ -13,3 +13,11 @@ if ($LASTEXITCODE -ne 0) { throw 'Local checks failed.' }
 if ($LASTEXITCODE -ne 0) { throw 'Compilation of blur checks failed.' }
 & $runtime -cp $outputPath com.linart.tvpreview.BlurPixelsCheck
 if ($LASTEXITCODE -ne 0) { throw 'Blur checks failed.' }
+& $compiler -encoding UTF-8 -d $outputPath (Join-Path $projectRoot 'app\src\main\java\com\linart\tvpreview\MatchCompetition.java') (Join-Path $projectRoot 'tests\MatchCompetitionCheck.java')
+if ($LASTEXITCODE -ne 0) { throw 'Compilation of competition checks failed.' }
+& $runtime -cp $outputPath com.linart.tvpreview.MatchCompetitionCheck
+if ($LASTEXITCODE -ne 0) { throw 'Competition checks failed.' }
+& $compiler -encoding UTF-8 -d $outputPath (Join-Path $projectRoot 'app\src\main\java\com\linart\tvpreview\CalendarScope.java') (Join-Path $projectRoot 'tests\CalendarScopeCheck.java')
+if ($LASTEXITCODE -ne 0) { throw 'Compilation of calendar scope checks failed.' }
+& $runtime -cp $outputPath com.linart.tvpreview.CalendarScopeCheck
+if ($LASTEXITCODE -ne 0) { throw 'Calendar scope checks failed.' }

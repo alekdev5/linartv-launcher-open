@@ -22,8 +22,8 @@
 **LinarTV** is a clean, fast home screen for Android TV built around Polish football. It shows the clock, the weather for your city and the next matches of one or two clubs you follow — and keeps your favourite apps one click away.
 
 ### Features
-- **Your clubs' fixtures** — pick one or two teams from any Polish league available on [kalendarzeligowe.pl](https://kalendarzeligowe.pl); fixtures update daily, with club crests.
-- **Weather for any city** — current conditions, hourly and 7-day forecast from [Open-Meteo](https://open-meteo.com) (no API key).
+- **Your clubs' fixtures** — pick one or two teams from Ekstraklasa, I liga, II liga or any of the four III liga groups on [kalendarzeligowe.pl](https://kalendarzeligowe.pl); fixtures update daily, with club crests.
+- **Weather for Polish cities** — current model conditions, hourly and 7-day forecast with weather icons from IMGW-PIB.
 - **Day and night modes**, app dock and full app drawer, quick access to TV inputs.
 - **Polish or English interface** and Celsius or Fahrenheit temperature, selectable in LinarTV settings.
 - **Wallpapers from your phone** — scan a QR code and upload photos over your home Wi-Fi (6-digit code, attempt limit).
@@ -48,10 +48,10 @@ Signed releases: see [docs/RELEASING.md](docs/RELEASING.md).
 ### Credits
 - Inspired by and started inside [Clean Your TV](https://cleanyour.tv/) by Gathin (MIT).
 - Fixtures: [kalendarzeligowe.pl](https://kalendarzeligowe.pl) — used with the site owner's permission.
-- World fixtures, club catalog and crests (experimental integration): [fixtur.es](https://fixtur.es/), De Agendamakers B.V. Provider permission is pending before a public release of this integration. Competition names and available league rounds come from the provider's public pages; cup stages may be unavailable.
-- Weather data: [Open-Meteo.com](https://open-meteo.com) (CC BY 4.0).
+- Weather data and icons: IMGW-PIB (meteo.imgw.pl). The data have been processed.
+- Polish city search: Open-Meteo geocoding / GeoNames (CC BY 4.0), used only to find coordinates.
 - Weather Icons font by Erik Flowers (SIL OFL 1.1).
-- Weather symbols follow Open-Meteo WMO codes, including separate day and night variants.
+- Weather symbols use IMGW's day and night variants.
 - Club crests belong to their clubs — see [docs/CRESTS.md](docs/CRESTS.md).
 
 ### License
@@ -64,8 +64,8 @@ Code: [MIT](LICENSE). Club crests and third-party logos are not covered by the c
 **LinarTV** to czytelny, szybki ekran główny dla Android TV z myślą o polskiej piłce. Pokazuje zegar, pogodę dla Twojego miasta i najbliższe mecze jednego lub dwóch klubów — a ulubione aplikacje są zawsze pod ręką.
 
 ### Funkcje
-- **Terminarz Twoich klubów** — wybierz jedną lub dwie drużyny z lig dostępnych na [kalendarzeligowe.pl](https://kalendarzeligowe.pl); terminarze odświeżają się codziennie, z herbami klubów.
-- **Pogoda dla dowolnego miasta** — aktualne warunki, prognoza godzinowa i 7-dniowa z [Open-Meteo](https://open-meteo.com), bez klucza API. Miasto zmienisz w *Ustawieniach*.
+- **Terminarz Twoich klubów** — wybierz jedną lub dwie drużyny z Ekstraklasy, I ligi, II ligi lub dowolnej z czterech grup III ligi na [kalendarzeligowe.pl](https://kalendarzeligowe.pl); terminarze odświeżają się codziennie, z herbami klubów.
+- **Pogoda dla miast w Polsce** — aktualne warunki modelowe, prognoza godzinowa i 7-dniowa oraz ikony IMGW-PIB. Miasto zmienisz w *Ustawieniach*.
 - **Tryb dzienny i nocny**, pasek aplikacji i pełna lista aplikacji, szybki dostęp do źródeł TV.
 - **Język polski lub angielski** oraz temperatura w stopniach Celsjusza lub Fahrenheita, wybierane w ustawieniach LinarTV.
 - **Tapety z telefonu** — zeskanuj kod QR i wyślij zdjęcia przez domowe Wi-Fi (6-cyfrowy kod z limitem prób).
@@ -90,9 +90,10 @@ Podpisane wydania: [docs/RELEASING.md](docs/RELEASING.md). Plan prac: [docs/ROAD
 ### Podziękowania
 - Projekt powstał na bazie i z inspiracji [Clean Your TV](https://cleanyour.tv/) (Gathin, MIT).
 - Terminarze: [kalendarzeligowe.pl](https://kalendarzeligowe.pl) — za zgodą właściciela serwisu.
-- Pogoda: [Open-Meteo.com](https://open-meteo.com) (CC BY 4.0).
+- Pogoda i ikony: IMGW-PIB (meteo.imgw.pl). Dane IMGW-PIB zostały przetworzone.
+- Wyszukiwanie polskich miejscowości: geokodowanie Open-Meteo / GeoNames (CC BY 4.0), wyłącznie do ustalania współrzędnych.
 - Font Weather Icons: Erik Flowers (SIL OFL 1.1).
-- Symbole pogody odpowiadają kodom WMO z Open-Meteo i uwzględniają porę dnia.
+- Symbole pogody pochodzą z IMGW i uwzględniają porę dnia.
 - Herby należą do klubów — zobacz [docs/CRESTS.md](docs/CRESTS.md).
 
 ### Licencja

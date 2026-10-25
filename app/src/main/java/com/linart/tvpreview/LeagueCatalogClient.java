@@ -21,15 +21,13 @@ import java.util.regex.Pattern;
 
 /** Current leagues and teams from the same public catalogue used by kalendarzeligowe.pl. */
 final class LeagueCatalogClient {
+    static final int CACHE_FORMAT = 2;
     private static final String ROOT = "https://kalendarzeligowe.pl/api/";
-    private static final String[] SLUGS = {"ekstraklasa", "1-liga", "2-liga",
-            "3-liga-grupa-1", "3-liga-grupa-2", "3-liga-grupa-3", "3-liga-grupa-4",
-            "4-liga-swietokrzyska", "klasa-okregowa-swietokrzyska", "reprezentacja"};
+    private static final List<String> SLUGS = CalendarScope.LEAGUES;
     private static final String[] CATEGORIES = {"EKSTRAKLASA", "FIRST_LEAGUE", "SECOND_LEAGUE",
-            "THIRD_LEAGUE", "THIRD_LEAGUE", "THIRD_LEAGUE", "THIRD_LEAGUE",
-            "FOURTH_LEAGUE", "KLASA_OKREGOWA", "NATIONAL_TEAM"};
+            "THIRD_LEAGUE", "THIRD_LEAGUE", "THIRD_LEAGUE", "THIRD_LEAGUE"};
     private static final String[] GROUPS = {"", "", "", "Grupa I", "Grupa II", "Grupa III",
-            "Grupa IV", "świętokrzyska", "świętokrzyska", ""};
+            "Grupa IV"};
 
     static final class League {
         final int id;
@@ -59,12 +57,12 @@ final class LeagueCatalogClient {
         if (season.isEmpty()) throw new IllegalStateException("Brak bieżącego sezonu");
         JSONArray competitions = readArray("competitions?season=" + URLEncoder.encode(season, "UTF-8"));
         List<League> result = new ArrayList<>();
-        for (int i = 0; i < SLUGS.length; i++) {
+        for (int i = 0; i < SLUGS.size(); i++) {
             for (int j = 0; j < competitions.length(); j++) {
                 JSONObject item = competitions.getJSONObject(j);
                 String group = item.isNull("groupName") ? "" : item.optString("groupName", "");
                 if (CATEGORIES[i].equals(item.optString("category")) && GROUPS[i].equals(group)) {
-                    result.add(new League(item.getInt("id"), item.getString("name"), SLUGS[i], season));
+                    result.add(new League(item.getInt("id"), item.getString("name"), SLUGS.get(i), season));
                     break;
                 }
             }
@@ -104,7 +102,7 @@ final class LeagueCatalogClient {
     /** The site's ICS feed omits fixtures whose kickoff time is still provisional. */
     static List<IcsMatchParser.Match> teamMatches(String calendarUrl, long fromMillis) throws Exception {
         Matcher id = Pattern.compile("-(\\d+)/calendar\\.ics(?:\\?.*)?$").matcher(calendarUrl);
-        if (!calendarUrl.startsWith("https://kalendarzeligowe.pl/") || !id.find())
+        if (!CalendarScope.accepts(calendarUrl) || !id.find())
             throw new IllegalArgumentException("Unknown team calendar URL");
         int teamId = Integer.parseInt(id.group(1));
         List<IcsMatchParser.Match> matches = new ArrayList<>();
@@ -128,8 +126,14 @@ final class LeagueCatalogClient {
                                 .atStartOfDay(ZoneId.of("Europe/Warsaw")).toInstant().toEpochMilli();
                 if (startsAt < fromMillis) continue;
                 JSONObject round = item.optJSONObject("round");
+                JSONObject competition = item.optJSONObject("competition");
+                MatchCompetition metadata = MatchCompetition.from(
+                        competition == null ? "" : competition.optString("name", ""),
+                        competition == null ? "" : competition.optString("category", ""),
+                        round == null ? "" : round.optString("name", ""),
+                        round == null ? -1 : round.optInt("roundNumber", -1));
                 matches.add(new IcsMatchParser.Match(home.optString("name"), away.optString("name"),
-                        startsAt, hasTime, round == null ? -1 : round.optInt("roundNumber", -1)));
+                        startsAt, hasTime, metadata.round, metadata.name, metadata.stage));
             }
             JSONObject meta = response.optJSONObject("meta");
             if (meta == null || page >= meta.optInt("pageCount", page)) break;
