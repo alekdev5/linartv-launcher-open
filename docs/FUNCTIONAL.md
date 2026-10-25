@@ -1,0 +1,221 @@
+# LinarTV Open — dokumentacja funkcjonalna / Functional documentation
+
+Wersja / Version 1.0.0 · Android TV 8.0+ (minSdk 26) · `io.github.domlin92.linartv.open`
+
+[Polski](#polski) · [English](#english) · [Diagramy / Diagrams](#3-przepływ-danych-uml)
+
+## Polski
+
+LinarTV to ekran główny (launcher) dla Android TV z myślą o kibicach polskiej piłki. Wszystko dzieje się na jednym ekranie: zegar, pogoda, terminarze klubów, aplikacje i ustawienia, obsługiwane pilotem.
+
+### 1. Funkcje
+
+#### Pulpit
+- **Zegar i data** w wybranym języku (polski lub angielski).
+- **Pogoda** dla wybranego miasta w Polsce: bieżąca temperatura i prognoza godzinowa. Kliknięcie kafelka otwiera szczegóły: 7 dni, warunki teraz (wiatr, wilgotność, ciśnienie, opad), Słońce i fazę Księżyca. Dane odświeżają się co 30 minut.
+- **Terminarz jednego lub dwóch klubów** z Ekstraklasy, I ligi, II ligi lub dowolnej grupy III ligi. Karta pokazuje rozgrywki i kolejkę, rywala, herby, datę i godzinę (gdy jest potwierdzona) oraz czerwony **LIVE** w trakcie meczu. Kliknięcie karty przełącza między najbliższym a następnym meczem. Terminarze odświeżają się raz dziennie.
+- **Układ:** przy dwóch klubach pogoda i dwie karty meczów stoją w jednym rzędzie. Przy jednym klubie pogoda i karta meczu są ułożone jedna nad drugą po prawej stronie.
+- **Pasek narzędzi:** Oglądaj telewizję, Źródła (wejścia HDMI i tuner TV) oraz Ustawienia.
+
+#### Dock i aplikacje
+- Dock z ulubionymi aplikacjami pokazuje ich oryginalne banery. Przy mniej niż 4 aplikacjach kafelki są wyśrodkowane.
+- **Przytrzymanie OK na kafelku** otwiera menu: Zamień aplikację, Przesuń (strzałki ◀ ▶ przestawiają kafelek, OK zapisuje, Wstecz anuluje), Edytuj cały dock, Usuń z docka.
+- **Szuflada aplikacji**: strzałka w dół pod dockiem otwiera listę wszystkich aplikacji.
+- **Odtwarzana muzyka:** gdy gra Spotify, pasek pokazuje tytuł utworu.
+
+#### Ustawienia (zębatka)
+| Kafelek | Co robi |
+|---|---|
+| Zamknij aplikacje | Prosi system o zamknięcie nieaktywnych aplikacji w tle; nie dotyka launchera ani usług systemowych |
+| Tapety | Galeria tapet, w tym zdjęcia z telefonu przez QR kod i domowe Wi-Fi (6-cyfrowy kod, limit prób) |
+| Wygaszacz | Pokaz Twoich zdjęć po wybranym czasie bezczynności (domyślnie 5 min) |
+| Wygląd launchera | Automatycznie (dzień 08:00–19:59, noc 20:00–07:59), zawsze jasny, zawsze ciemny, własne godziny |
+| Pogoda | Wybór miasta w Polsce i jednostki (°C lub °F) |
+| Kalendarze | Kreator „Twoje kluby” (liga → klub, jeden lub dwa) oraz „Odśwież teraz” |
+
+Pod kafelkami: wolna pamięć RAM i miejsce na dysku, skrót do ustawień Android TV, Język, O aplikacji.
+
+#### Pierwsze uruchomienie
+Kreator prowadzi przez dwa kroki: „Twoje kluby”, a potem „Twoje aplikacje” (wybór docka spośród zainstalowanych aplikacji).
+
+### 2. Źródła danych
+
+| Dane | Źródło | Jak często | Uwagi |
+|---|---|---|---|
+| Lista lig i drużyn | kalendarzeligowe.pl — API (`/api/seasons`, `/api/competitions`, `/api/competitions/{id}/standings`) | przy wyborze klubu | za zgodą właściciela serwisu |
+| Terminarz klubu | kalendarzeligowe.pl — API (`/api/matches?teamId=`) | raz dziennie | w pamięci TV (SharedPreferences) |
+| Herby | 77 wbudowanych w APK (`assets/crests`); brakujące z kalendarzeligowe.pl (`/api/teams/{id}/logo`) | wbudowane: zawsze; pobrane: kontrola co 7 dni | bez herbu pokazywane są inicjały; zob. [CRESTS.md](CRESTS.md) |
+| Prognoza i warunki teraz | IMGW-PIB — meteo.imgw.pl (`/api/v1/forecast/fcapi`, `/forecastapi`) | co 30 minut | tylko współrzędne w Polsce; podpis „Źródło danych: IMGW-PIB… dane przetworzone” |
+| Ikony pogody | IMGW-PIB (`meteo.imgw.pl/assets/images/weather-icons`, SVG → PNG w pamięci TV) | raz na ikonę | do czasu pobrania i bez sieci: wbudowana czcionka Weather Icons (SIL OFL 1.1) |
+| Wyszukiwanie miasta | Open-Meteo Geocoding (GeoNames, CC BY 4.0), filtr `countryCode=PL` | przy wyborze miasta | służy tylko do znalezienia współrzędnych |
+| Aplikacje w docku i szufladzie | Android PackageManager (aplikacje Leanback) | przy starcie i zmianach | — |
+| Źródła TV | Android TvInputManager / TvContract | na żądanie | wejścia HDMI i tuner |
+| Odtwarzana muzyka | Android MediaSessionManager (sesja Spotify) | na bieżąco | wymaga zgody na dostęp do powiadomień |
+| Zdjęcia z telefonu | wbudowany serwer HTTP w sieci lokalnej (PhotoUploadServer) | na żądanie | tylko domowa sieć Wi-Fi; kod jednorazowy z limitem prób |
+
+Aplikacja nie ma konta użytkownika ani analityki. Do serwisów zewnętrznych trafiają tylko zapytania potrzebne do pobrania danych: współrzędne wybranego miasta, wpisana nazwa miasta i identyfikator drużyny. Ustawienia, terminarze, prognoza i pobrane obrazy są zapisane wyłącznie w pamięci telewizora.
+
+### 3. Przepływ danych (UML)
+
+#### Diagram komponentów
+```mermaid
+flowchart LR
+    subgraph Internet
+        KL["kalendarzeligowe.pl<br/>API: ligi, drużyny, mecze, logo"]
+        IMGW["meteo.imgw.pl (IMGW-PIB)<br/>prognoza + ikony SVG"]
+        OM["Open-Meteo Geocoding<br/>współrzędne miast w PL"]
+    end
+    subgraph Telefon["Telefon w domowej sieci Wi-Fi"]
+        PH["Przeglądarka<br/>(QR kod + 6-cyfrowy kod)"]
+    end
+    subgraph TV["Telewizor z LinarTV"]
+        LCC["LeagueCatalogClient"]
+        CR["CrestRepository"]
+        IFC["ImgwForecastClient"]
+        IIR["ImgwIconRepository"]
+        PCC["PolishCityClient"]
+        PUS["PhotoUploadServer"]
+        SNP["SpotifyNowPlaying"]
+        UI["DashboardActivity<br/>pulpit, dock, ustawienia"]
+        ST[("Pamięć TV<br/>SharedPreferences + pliki")]
+        AS[("APK: herby, czcionka<br/>Weather Icons")]
+        AND["Android: PackageManager,<br/>TvInputManager, MediaSession"]
+    end
+    KL -- "ligi, drużyny, terminarz (1×/dzień)" --> LCC
+    KL -- "logo brakujących herbów (co 7 dni)" --> CR
+    IMGW -- "prognoza (co 30 min)" --> IFC
+    IMGW -- "ikony SVG (1× na ikonę)" --> IIR
+    OM -- "współrzędne" --> PCC
+    PH -- "zdjęcia (HTTP w LAN)" --> PUS
+    AS --> CR
+    AS --> UI
+    LCC --> UI
+    CR --> UI
+    IFC --> UI
+    IIR --> UI
+    PCC --> UI
+    PUS --> ST
+    SNP --> UI
+    AND --> UI
+    AND --> SNP
+    UI <--> ST
+```
+
+#### Diagram sekwencji: start pulpitu i odświeżanie danych
+```mermaid
+sequenceDiagram
+    actor U as Użytkownik
+    participant D as DashboardActivity
+    participant S as Pamięć TV
+    participant L as LeagueCatalogClient
+    participant KL as kalendarzeligowe.pl
+    participant C as CrestRepository
+    participant F as ImgwForecastClient
+    participant I as meteo.imgw.pl
+
+    U->>D: włącza TV / przycisk Home
+    D->>S: wczytaj ustawienia, zapisane mecze i prognozę
+    D-->>U: pulpit od razu z danych zapisanych
+    alt terminarz starszy niż 24 h
+        D->>L: teamMatches(teamId)
+        L->>KL: GET /api/matches?teamId=…
+        KL-->>L: lista meczów
+        L-->>D: najbliższe mecze
+        D->>S: zapisz terminarz
+    end
+    D->>C: herb(nazwa, liga, id)
+    alt herb wbudowany w APK
+        C-->>D: obraz z assets
+    else brak w APK
+        C->>KL: GET /api/teams/{id}/logo
+        KL-->>C: obraz
+        C->>S: zapisz w crests-by-team
+        C-->>D: obraz (albo inicjały)
+    end
+    alt prognoza starsza niż 30 min
+        D->>F: fetch(lat, lon)
+        F->>I: GET fcapi + forecastapi
+        I-->>F: dane modelu
+        F-->>D: prognoza
+        D->>S: zapisz prognozę
+    end
+    D-->>U: odświeżone karty (bez przebudowy otwartych okien)
+```
+
+### 4. Zachowanie bez internetu
+- Pulpit, dock, szuflada, źródła TV, tapety i wygaszacz działają w pełni.
+- Terminarz i prognoza pokazują ostatnio zapisane dane wraz z godziną odświeżenia.
+- Herby wbudowane (77) są zawsze widoczne. Pozostałe pokazują się, jeśli wcześniej zostały pobrane, a w innym razie widać inicjały.
+- Ikony pogody: wcześniej pobrane ikony IMGW albo ikony z wbudowanej czcionki.
+
+### 5. Znane ograniczenia
+- Prognoza korzysta z interfejsu serwisu meteo.imgw.pl z publicznym tokenem zapisanym w kodzie strony IMGW. Zmiana tokenu po stronie IMGW wymaga aktualizacji aplikacji.
+- Gdy kalendarzeligowe.pl nie podaje potwierdzonej godziny meczu, karta pokazuje sam dzień.
+- Zamykanie aplikacji w tle zależy od systemu: Android może odmówić zamknięcia albo uruchomić aplikację ponownie.
+
+---
+
+## English
+
+LinarTV is a home screen (launcher) for Android TV built for Polish football fans. Everything is on one screen and works with the remote: clock, weather, club fixtures, apps and settings.
+
+### 1. Features
+
+**Home screen**
+- **Clock and date** in the selected language (Polish or English).
+- **Weather** for a chosen city in Poland: current temperature and hourly forecast. Clicking the tile opens details: 7 days, current conditions (wind, humidity, pressure, precipitation), sun and moon phase. Refreshed every 30 minutes.
+- **Fixtures of one or two clubs** from Ekstraklasa, I liga, II liga or any III liga group. The card shows competition and round, opponent, crests, date and kick-off time (when confirmed) and a red **LIVE** during the match. Clicking the card switches between the next and the following match. Fixtures refresh once a day.
+- **Layout:** with two clubs, weather and both match cards share one row; with one club, weather and the match card are stacked on the right.
+- **Toolbar:** Watch TV, Inputs (HDMI and TV tuner) and Settings.
+
+**Dock and apps**
+- The dock shows favourite apps with their original banners; with fewer than 4 apps the tiles are centred.
+- **Hold OK on a tile** for: Replace app, Move (◀ ▶ move the tile, OK saves, Back cancels), Edit the whole dock, Remove from dock.
+- **App drawer:** the down arrow below the dock opens all apps.
+- **Now playing:** while Spotify plays, the strip shows the track.
+
+**Settings (gear)**
+
+| Tile | What it does |
+|---|---|
+| Close apps | Asks Android to stop inactive background apps; never touches the launcher or system services |
+| Wallpapers | Wallpaper gallery, including phone photos via QR code over home Wi-Fi (6-digit code, attempt limit) |
+| Screensaver | Slideshow of your photos after the chosen idle time (5 min by default) |
+| Launcher appearance | Automatic (day 08:00–19:59, night 20:00–07:59), always light, always dark, custom hours |
+| Weather | City in Poland and unit (°C or °F) |
+| Calendars | "Your clubs" wizard (league → club, one or two) and "Refresh now" |
+
+Below the tiles: free RAM and storage, a shortcut to Android TV settings, Language, About.
+
+**First run:** a two-step wizard — "Your clubs", then "Your apps" (dock picked from installed apps).
+
+### 2. Data sources
+
+| Data | Source | How often | Notes |
+|---|---|---|---|
+| Leagues and teams | kalendarzeligowe.pl API (`/api/seasons`, `/api/competitions`, `/api/competitions/{id}/standings`) | when choosing a club | used with the site owner's permission |
+| Club fixtures | kalendarzeligowe.pl API (`/api/matches?teamId=`) | once a day | stored on the TV (SharedPreferences) |
+| Crests | 77 bundled in the APK (`assets/crests`); missing ones from kalendarzeligowe.pl (`/api/teams/{id}/logo`) | bundled: always; downloaded: checked every 7 days | initials when no image exists; see [CRESTS.md](CRESTS.md) |
+| Forecast and current conditions | IMGW-PIB — meteo.imgw.pl (`/api/v1/forecast/fcapi`, `/forecastapi`) | every 30 minutes | coordinates in Poland only; attribution "Data source: IMGW-PIB… processed" |
+| Weather icons | IMGW-PIB (`meteo.imgw.pl/assets/images/weather-icons`, SVG → PNG cached on the TV) | once per icon | until downloaded and offline: bundled Weather Icons font (SIL OFL 1.1) |
+| City search | Open-Meteo Geocoding (GeoNames, CC BY 4.0), `countryCode=PL` | when choosing a city | used to find coordinates |
+| Dock and drawer apps | Android PackageManager (Leanback apps) | at start and on changes | — |
+| TV inputs | Android TvInputManager / TvContract | on demand | HDMI inputs and tuner |
+| Now playing | Android MediaSessionManager (Spotify session) | live | needs notification access |
+| Phone photos | built-in local HTTP server (PhotoUploadServer) | on demand | home Wi-Fi only; one-time code with attempt limit |
+
+No user account and no analytics. External services only receive what is needed to fetch data: the chosen city's coordinates, the typed city name and the team id. Settings, fixtures, forecast and downloaded images are stored only on the TV.
+
+### 3. Data flow (UML)
+See the component and sequence diagrams [above](#3-przepływ-danych-uml) — they apply to both languages.
+
+### 4. Offline behaviour
+- Home screen, dock, drawer, TV inputs, wallpapers and screensaver work fully.
+- Fixtures and forecast show the last stored data with its refresh time.
+- The 77 bundled crests are always shown; others appear if previously downloaded, otherwise initials.
+- Weather icons: previously downloaded IMGW icons or icons from the bundled font.
+
+### 5. Known limitations
+- The forecast uses the meteo.imgw.pl interface with a public token found in the IMGW website code. If IMGW changes the token, the app needs an update.
+- When kalendarzeligowe.pl has no confirmed kick-off time, the card shows the day only.
+- Closing background apps depends on the system: Android may refuse or restart them.

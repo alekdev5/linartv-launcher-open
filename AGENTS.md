@@ -1,0 +1,81 @@
+# Instructions for AI coding assistants / Instrukcje dla asystentów AI
+
+This file is read by Codex, Claude Code and similar tools (Claude Code loads it through `CLAUDE.md`).
+Plik czytają Codex, Claude Code i podobne narzędzia (Claude Code wczytuje go przez `CLAUDE.md`).
+
+---
+
+## English
+
+### What this project is
+LinarTV Open is an Android TV home screen (launcher) for Polish football fans: clock, IMGW weather for a Polish city, fixtures of one or two clubs from kalendarzeligowe.pl, an app dock, wallpapers and a screensaver. One activity (`DashboardActivity`), plain Java, no Kotlin, no Compose. Read [docs/FUNCTIONAL.md](docs/FUNCTIONAL.md) first.
+
+### Typical user request: "install LinarTV on my TV"
+Work step by step and tell the user what each step does. Ask before every step that changes the TV.
+
+1. **Prerequisites on the computer:** JDK 17 (`JAVA_HOME`), Android SDK platform 34 + build-tools (`ANDROID_HOME`), `adb` from platform-tools.
+   Easiest alternative: download the signed `LinarTV.apk` from GitHub Releases instead of building.
+2. **Build (optional):**
+   ```bash
+   ./gradlew :app:assembleDebug        # Windows: .\gradlew.bat :app:assembleDebug
+   ```
+   Output: `app/build/outputs/apk/debug/LinarTV-<version>-debug.apk`.
+3. **Connect to the TV** (the user does this on the TV): Settings → Device Preferences → About → click *Build* 7×, then Developer options → enable *USB debugging* / *Network debugging*. Find the TV's IP address in network settings.
+   ```bash
+   adb connect <TV_IP>:5555            # accept the prompt on the TV
+   adb install -r LinarTV.apk
+   ```
+4. **Open it:** `adb shell am start -n io.github.domlin92.linartv.open/com.linart.tvpreview.DashboardActivity`
+5. **Make it the home screen (optional, ask first).** Prefer the TV's own setting (*Home screen* / *Default home app*) if it exists. Otherwise:
+   ```bash
+   adb shell cmd package set-home-activity --user 0 io.github.domlin92.linartv.open/com.linart.tvpreview.DashboardActivity
+   ```
+   Some TVs (e.g. Philips/Google TV) keep returning to the stock launcher. Disabling it is possible, but **only after the user agrees** and after you have written down the restore commands:
+   ```bash
+   adb shell pm disable-user --user 0 com.google.android.tvlauncher      # stock launcher on many Android TVs
+   # restore:
+   adb shell pm enable com.google.android.tvlauncher
+   adb shell cmd package set-home-activity --user 0 com.google.android.tvlauncher/.MainActivity
+   ```
+   Never run `pm uninstall` on system packages and never disable packages you have not identified with `adb shell cmd package resolve-activity -c android.intent.category.HOME`.
+6. **First run:** the wizard asks for one or two clubs and the dock apps. Weather city is in Settings → Weather. Spotify "now playing" needs notification access (Settings → Spotify), see [docs/SPOTIFY.md](docs/SPOTIFY.md).
+
+### Rules when changing the code
+- Run `scripts/test-local.ps1` (or the Java checks in `tests/`) and `./gradlew :app:assembleDebug` before proposing a change.
+- **Versioning:** every published build bumps `versionCode` by 1 and sets a semantic `versionName` in `app/build.gradle`; tag releases `vX.Y.Z`. See [docs/RELEASING.md](docs/RELEASING.md).
+- **Documentation is bilingual** (Polish + English). Update both languages.
+- **Data sources:** only kalendarzeligowe.pl (used with the owner's permission), IMGW-PIB (attribution required: "Źródłem pochodzenia danych jest IMGW-PIB… dane zostały przetworzone") and Open-Meteo geocoding (coordinates only). Do not add new sources without the maintainer's consent; never bypass reCAPTCHA or ignore `robots.txt`.
+- **Club crests** are third-party marks, not MIT. Add them only from the maintainer's `club-crests` packs via `scripts/import-club-crests.ps1`, then `python scripts/shrink-crests.py`. See [docs/CRESTS.md](docs/CRESTS.md).
+- **No secrets:** never commit keystores, passwords, IP addresses of the user's network or personal photos. Run `python scripts/audit_public.py` before every push.
+- Keep the remote-control (D-pad) navigation working: every new view must be focusable and reachable with arrows; Back closes popups first.
+
+---
+
+## Polski
+
+### Czym jest projekt
+LinarTV Open to ekran główny (launcher) dla Android TV dla kibiców polskiej piłki: zegar, pogoda IMGW dla polskiego miasta, terminarz jednego lub dwóch klubów z kalendarzeligowe.pl, dock aplikacji, tapety i wygaszacz. Jedna aktywność (`DashboardActivity`), czysta Java, bez Kotlina i Compose. Najpierw przeczytaj [docs/FUNCTIONAL.md](docs/FUNCTIONAL.md).
+
+### Typowa prośba: „zainstaluj LinarTV na moim telewizorze”
+Pracuj krok po kroku i mów użytkownikowi, co robi każdy krok. Pytaj przed każdym krokiem, który zmienia coś na telewizorze.
+
+1. **Wymagania na komputerze:** JDK 17 (`JAVA_HOME`), Android SDK z platformą 34 i build-tools (`ANDROID_HOME`), `adb` z platform-tools.
+   Najprościej: zamiast budować, pobierz podpisany `LinarTV.apk` z GitHub Releases.
+2. **Budowanie (opcjonalnie):** `./gradlew :app:assembleDebug` (Windows: `.\gradlew.bat :app:assembleDebug`). Plik: `app/build/outputs/apk/debug/LinarTV-<wersja>-debug.apk`.
+3. **Połączenie z TV** (użytkownik robi to na telewizorze): Ustawienia → Ustawienia urządzenia → Informacje → 7× kliknij *Kompilacja*, potem w Opcjach programisty włącz *Debugowanie USB* / *sieciowe*. Adres IP znajdziesz w ustawieniach sieci.
+   ```bash
+   adb connect <IP_TV>:5555            # potwierdź na telewizorze
+   adb install -r LinarTV.apk
+   ```
+4. **Uruchomienie:** `adb shell am start -n io.github.domlin92.linartv.open/com.linart.tvpreview.DashboardActivity`
+5. **Ustawienie jako ekran główny (opcjonalnie, zapytaj najpierw).** Najlepiej przez ustawienie telewizora (*Ekran główny* / *Domyślna aplikacja ekranu głównego*), jeśli istnieje. W przeciwnym razie użyj `cmd package set-home-activity` (jak w części angielskiej). Wyłączenie fabrycznego launchera (`pm disable-user`) tylko za zgodą użytkownika i po zapisaniu poleceń przywracających. Nigdy nie używaj `pm uninstall` na pakietach systemowych.
+6. **Pierwsze uruchomienie:** kreator pyta o kluby i aplikacje w docku. Miasto pogody: Ustawienia → Pogoda. Spotify wymaga dostępu do powiadomień ([docs/SPOTIFY.md](docs/SPOTIFY.md)).
+
+### Zasady przy zmianach w kodzie
+- Przed propozycją zmiany uruchom `scripts/test-local.ps1` i `./gradlew :app:assembleDebug`.
+- **Wersjonowanie:** każde publikowane wydanie zwiększa `versionCode` o 1 i ustawia `versionName` (semver) w `app/build.gradle`; tag `vX.Y.Z`. Zob. [docs/RELEASING.md](docs/RELEASING.md).
+- **Dokumentacja jest dwujęzyczna** (polski + angielski) — aktualizuj obie wersje.
+- **Źródła danych:** tylko kalendarzeligowe.pl (za zgodą właściciela), IMGW-PIB (z wymaganym podpisem źródła) i geokodowanie Open-Meteo (tylko współrzędne). Bez zgody opiekuna nie dodawaj nowych źródeł; nigdy nie obchodź reCAPTCHA ani `robots.txt`.
+- **Herby** to znaki klubów, nie MIT. Dodawaj je tylko z paczek `club-crests` opiekuna przez `scripts/import-club-crests.ps1`, potem `python scripts/shrink-crests.py`. Zob. [docs/CRESTS.md](docs/CRESTS.md).
+- **Bez sekretów:** nie commituj kluczy, haseł, adresów sieci użytkownika ani zdjęć. Przed każdym pushem uruchom `python scripts/audit_public.py`.
+- Zachowaj sterowanie pilotem: każdy nowy element musi mieć fokus i być osiągalny strzałkami; Wstecz najpierw zamyka okna.

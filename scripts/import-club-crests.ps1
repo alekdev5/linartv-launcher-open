@@ -70,6 +70,21 @@ $packs = @{
 $packs['3-liga-grupa-2'] = @{ Folder='iii-liga-gr-ii'; Clubs=[ordered]@{
     'Polonia Środa Wielkopolska'='polonia-sroda-wielkopolska.png'
 }}
+# III liga group I: reserve teams use their own names so they never borrow the first team's entry by accident.
+$packs['3-liga-grupa-1'] = @{ Folder='iii-liga-gr-i'; Clubs=[ordered]@{
+    'Jagiellonia II Białystok'='jagiellonia-ii.png'
+    'ŁKS II Łódź'='lks-ii-lodz.png'
+    'Warta Sieradz'='warta-sieradz.png'
+    'Wisła II Płock'='wisla-ii-plock.png'
+}}
+# kalendarzeligowe.pl team ids: the id match wins over name matching in CrestRepository.
+$teamIds = @{
+    'Polonia Środa Wielkopolska' = 88
+    'Warta Sieradz' = 61
+    'ŁKS II Łódź' = 67
+    'Jagiellonia II Białystok' = 68
+    'Wisła II Płock' = 72
+}
 # Resolve every club association before copying anything.
 $transfers = foreach ($league in $packs.Keys) {
     $pack = $packs[$league]
@@ -96,8 +111,10 @@ foreach ($transfer in $transfers) {
     if ($transfer.Entry) { $transfer.Entry.asset=$transfer.Asset; $transfer.Entry.source='curated' }
     else { $manifest.Add([pscustomobject]@{name=$transfer.Club;league=$transfer.League;source='curated';teamId=0;url='';asset=$transfer.Asset}) }
 }
-$polonia = $manifest | Where-Object { $_.name -eq 'Polonia Środa Wielkopolska' } | Select-Object -First 1
-$polonia.teamId = 88
+foreach ($club in $teamIds.Keys) {
+    $entry = $manifest | Where-Object { $_.name -eq $club } | Select-Object -First 1
+    if ($entry) { $entry.teamId = $teamIds[$club] }
+}
 $slaskSource = Join-Path $SourceRoot 'ekstraklasa\SlaskWroclaw.png'
 if (Test-Path -LiteralPath $slaskSource) {
     $slask = $manifest | Where-Object { $_.league -eq 'ekstraklasa' -and $_.name -eq 'Śląsk Wrocław' } | Select-Object -First 1
@@ -109,4 +126,5 @@ if (Test-Path -LiteralPath $slaskSource) {
     }
 }
 [IO.File]::WriteAllText($manifestPath, (ConvertTo-Json -InputObject @($manifest.ToArray()) -Depth 8) + "`n", [Text.UTF8Encoding]::new($false))
-Write-Output "Imported and hash-verified $($transfers.Count) crests, including Polonia Sroda Wielkopolska."
+Write-Output "Imported and hash-verified $($transfers.Count) crests (III liga groups I, II and IV included)."
+Write-Output "Next: python scripts/shrink-crests.py  (fits the copies to 512 px, as the app displays them)."

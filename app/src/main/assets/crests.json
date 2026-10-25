@@ -576,11 +576,43 @@
         "asset":  "crests/curated/ii_liga_zawisza_bydgoszcz.png"
     },
     {
-        "name": "Polonia Środa Wielkopolska",
-        "league": "3-liga-grupa-2",
-        "source": "curated",
-        "teamId": 88,
-        "url": "",
-        "asset": "crests/curated/3-liga-grupa-2_polonia_sroda_wielkopolska.png"
+        "name":  "Polonia Środa Wielkopolska",
+        "league":  "3-liga-grupa-2",
+        "source":  "curated",
+        "teamId":  88,
+        "url":  "",
+        "asset":  "crests/curated/3-liga-grupa-2_polonia_sroda_wielkopolska.png"
+    },
+    {
+        "name":  "Jagiellonia II Białystok",
+        "league":  "3-liga-grupa-1",
+        "source":  "curated",
+        "teamId":  68,
+        "url":  "",
+        "asset":  "crests/curated/3-liga-grupa-1_jagiellonia_ii_bialystok.png"
+    },
+    {
+        "name":  "ŁKS II Łódź",
+        "league":  "3-liga-grupa-1",
+        "source":  "curated",
+        "teamId":  67,
+        "url":  "",
+        "asset":  "crests/curated/3-liga-grupa-1_lks_ii_lodz.png"
+    },
+    {
+        "name":  "Warta Sieradz",
+        "league":  "3-liga-grupa-1",
+        "source":  "curated",
+        "teamId":  61,
+        "url":  "",
+        "asset":  "crests/curated/3-liga-grupa-1_warta_sieradz.png"
+    },
+    {
+        "name":  "Wisła II Płock",
+        "league":  "3-liga-grupa-1",
+        "source":  "curated",
+        "teamId":  72,
+        "url":  "",
+        "asset":  "crests/curated/3-liga-grupa-1_wisla_ii_plock.png"
     }
 ]

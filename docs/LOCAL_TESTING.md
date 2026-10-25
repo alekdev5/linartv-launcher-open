@@ -1,60 +1,59 @@
-# Local testing
+# Testy lokalne / Local testing
 
-## Without a TV
+## Polski
 
-With JDK 17 on `JAVA_HOME`, run from the repository root:
-
+### Bez telewizora
+Z JDK 17 w `JAVA_HOME`, w katalogu repozytorium:
 ```powershell
 .\scripts\test-local.ps1
 .\gradlew.bat :app:assembleDebug
 ```
+Pierwsze polecenie sprawdza logikę bez Androida: harmonogram trybu dzień/noc (także przez północ), wymuszony wygląd, czas wygaszacza, rozmycie okien (piksel po pikselu względem poprzedniego algorytmu), rozpoznawanie rozgrywek, zakres kalendarzy i dopasowanie nazw herbów. Nie testuje widoków ani nawigacji pilotem. Drugie polecenie kompiluje APK.
 
-The first command tests the actual scheduling rules for automatic light/dark
-appearance (including schedules crossing midnight), forced appearance, and the
-screensaver timeout. It does not test Android views or remote navigation.
-The second command compiles the native Android app; it does not run it.
+### Emulator
+Emulator Android TV (Android Studio) lub BlueStacks z włączonym ADB pozwala sprawdzić prawdziwe APK: fokus pilota, Wstecz, zapis ustawień, galerię tapet i okna. Użyj `adb connect 127.0.0.1:<port>` i `adb install -r <apk>`. Nie wyłączaj weryfikacji certyfikatów HTTPS przy pobieraniu obrazów systemu.
 
-Local checks also compare the optimized popup blur pixel by pixel with the
-original blur. Actual TV preparation timings and limitations are recorded in
-`OPTIMIZATION_REPORT.md`.
+Wejścia HDMI, Ambilight, Cast, ograniczenia procesów w tle, wybudzanie i wydajność trzeba sprawdzić na prawdziwym telewizorze.
 
-## Android TV emulator
+### Lista kontrolna przed wydaniem
+1. Pasek narzędzi: Oglądaj telewizję, Źródła, Ustawienia — w tej kolejności.
+2. Ustawienia otwierają panel boczny; pilot dociera do wszystkich kafelków i przycisków; Wstecz zamyka najpierw podmenu, potem panel, a fokus wraca na pulpit.
+3. RAM i pamięć widać tylko w panelu głównym.
+4. Tapety: galeria i wysyłanie z telefonu działają.
+5. Wygaszacz: Wyłączony, gotowe czasy i własny czas 1–1440 min; po restarcie ustawienie zostaje.
+6. Wygląd: Automatycznie, Zawsze jasny, Zawsze ciemny, własne godziny (identyczne godziny są odrzucane; domyślnie 08:00 / 20:00).
+7. Pogoda: wyszukiwanie miasta w Polsce i °C/°F. Kalendarze: wybór jednego lub dwóch klubów, „Odśwież teraz”.
+8. Język polski i angielski.
+9. Zmiana ustawień lub odświeżenie danych przy otwartym oknie nie podmienia pulpitu pod spodem; przebudowa następuje po zamknięciu okien.
+10. Dock: przytrzymanie OK → Przesuń, Zamień, Usuń; kolejność zostaje po restarcie.
 
-An Android TV virtual device can exercise the real APK, D-pad focus, Back,
-settings persistence, wallpaper gallery and popup navigation on a laptop.
-It requires Android Emulator, a TV system image and preferably hardware
-virtualization. A browser mockup does not run the Android implementation.
+Zamykanie aplikacji w tle prosi Androida o zakończenie procesów; system może odmówić, więc interfejs nie obiecuje odzyskanej pamięci.
 
-On the development laptop, checked 2026-10-24:
+## English
 
-- No emulator or TV system image is installed in the configured Android SDK.
-- SDK image discovery failed with a Java certificate validation error (PKIX).
-- Windows reported firmware virtualization unavailable. Confirm the actual
-  Windows/firmware configuration before installing an accelerated emulator.
-- No television was used for the quick settings implementation session.
+### Without a TV
+With JDK 17 on `JAVA_HOME`, from the repository root:
+```powershell
+.\scripts\test-local.ps1
+.\gradlew.bat :app:assembleDebug
+```
+The first command checks logic without Android: day/night scheduling (including across midnight), forced appearance, screensaver timeout, popup blur (pixel by pixel against the previous algorithm), competition detection, calendar scope and crest name matching. It does not test views or remote navigation. The second command builds the APK.
 
-Do not disable HTTPS certificate validation to download an image. Resolve the
-Java trust configuration or install the SDK packages through Android Studio.
+### Emulator
+An Android TV emulator (Android Studio) or BlueStacks with ADB enabled runs the real APK: remote focus, Back, settings persistence, wallpaper gallery and popups. Use `adb connect 127.0.0.1:<port>` and `adb install -r <apk>`. Do not disable HTTPS certificate validation to download system images.
 
-Philips HDMI inputs, Ambilight, Cast, real background-process restrictions,
-remote wake and performance still need checks on the actual television.
+HDMI inputs, Ambilight, Cast, background-process limits, wake-up and performance need a real television.
 
-## Quick settings verification on Android
+### Release checklist
+1. Toolbar: Watch TV, Inputs, Settings — in that order.
+2. Settings opens the side panel; the remote reaches every tile and button; Back closes a submenu first, then the panel, returning focus to home.
+3. RAM and storage appear only in the main panel.
+4. Wallpapers: gallery and phone upload work.
+5. Screensaver: Off, presets and a custom 1–1440 min value; the setting survives a restart.
+6. Appearance: Automatic, Always light, Always dark, custom hours (identical hours are rejected; defaults 08:00 / 20:00).
+7. Weather: Polish city search and °C/°F. Calendars: one or two clubs, "Refresh now".
+8. Polish and English interface.
+9. Changing settings or finishing a data refresh while a popup is open does not replace the dashboard underneath; the rebuild happens after popups close.
+10. Dock: hold OK → Move, Replace, Remove; the order survives a restart.
 
-1. The home toolbar contains Watch TV, Inputs and Settings, in that order.
-2. Settings opens the side panel. D-pad reaches all six tiles and footer actions;
-   Back closes a submenu first, then the overview, restoring home focus.
-3. RAM/storage appear only in the overview.
-4. Wallpapers opens the existing gallery and phone upload flow.
-5. Screensaver supports Off, presets and a custom 1–1440 minute value; restart
-   the app and verify persistence. Only user photos are used.
-6. Appearance supports Automatic, Always light and Always dark. Custom start
-   times persist; identical times are rejected. Defaults remain 08:00 / 20:00.
-7. Weather still supports city search and Celsius/Fahrenheit; calendars still
-   support club selection and can request an immediate refresh.
-8. Language selection remains available. Verify Polish and English.
-9. Changing settings or completing a data refresh while a popup is open must
-   not replace its underlying dashboard; rebuild happens after the popup stack closes.
-
-Background cleanup asks Android to kill eligible background processes. The
-system can refuse or restart them; the UI must not promise recovered RAM.
+Closing background apps asks Android to stop processes; the system may refuse, so the UI never promises freed memory.

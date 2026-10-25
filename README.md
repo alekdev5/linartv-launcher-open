@@ -38,6 +38,11 @@ The first signed APK and Downloader code are being prepared. Until the first rel
 
 Or download `LinarTV.apk` directly from [Releases](https://github.com/domlin92/linartv-launcher-open/releases/latest).
 
+### Install with an AI coding assistant (Codex, Claude Code)
+Open this repository in Codex, Claude Code or a similar tool and ask, for example: *"Install LinarTV on my Android TV"* (give it the TV's IP address from the TV's network settings). The assistant follows [AGENTS.md](AGENTS.md): it checks the tools, builds or downloads the APK, connects with `adb`, installs the app and — only after asking you — sets it as the home screen, keeping the commands to restore the original launcher. Enable developer options and network debugging on the TV first (Settings → Device Preferences → About → click *Build* 7 times).
+
+How it works and where the data comes from: [docs/FUNCTIONAL.md](docs/FUNCTIONAL.md) (in Polish, with UML diagrams).
+
 ### Build from source
 JDK 17 and the Android SDK are required (`JAVA_HOME`, `ANDROID_HOME`).
 ```text
@@ -70,6 +75,11 @@ Code: [MIT](LICENSE). Club crests and third-party logos are not covered by the c
 - **Język polski lub angielski** oraz temperatura w stopniach Celsjusza lub Fahrenheita, wybierane w ustawieniach LinarTV.
 - **Tapety z telefonu** — zeskanuj kod QR i wyślij zdjęcia przez domowe Wi-Fi (6-cyfrowy kod z limitem prób).
 - **Wygaszacz** z Twoimi zdjęciami po 5 minutach bezczynności.
+
+### Instalacja z asystentem AI (Codex, Claude Code)
+Otwórz to repozytorium w Codex, Claude Code lub podobnym narzędziu i poproś np.: *„Zainstaluj LinarTV na moim telewizorze”* (podaj adres IP telewizora z jego ustawień sieci). Asystent korzysta z [AGENTS.md](AGENTS.md): sprawdza narzędzia, buduje lub pobiera APK, łączy się przez `adb`, instaluje aplikację i — dopiero po Twojej zgodzie — ustawia ją jako ekran główny, zapisując polecenia przywracające fabryczny launcher. Wcześniej włącz na TV opcje programisty i debugowanie sieciowe (Ustawienia → Ustawienia urządzenia → Informacje → 7× *Kompilacja*).
+
+Opis działania i źródeł danych: [docs/FUNCTIONAL.md](docs/FUNCTIONAL.md) (z diagramami UML).
 
 ### Instalacja przez Downloader (bez komputera)
 Pierwszy podpisany APK i kod Downloadera są w przygotowaniu. Do tego czasu możesz zbudować testowy APK ze źródeł.

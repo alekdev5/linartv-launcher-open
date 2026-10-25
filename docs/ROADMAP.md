@@ -1,59 +1,79 @@
 # Plan / Roadmap
 
-Aktualny zakres Open (25.10.2026): wyłącznie kalendarzeligowe.pl — Ekstraklasa, I liga, II liga i cztery grupy III ligi. Obsługa fixtur.es została usunięta z kodu aplikacji do czasu otrzymania zgody. Poniższe notatki o niższych ligach i fixtur.es dotyczą przyszłych, obecnie niedostępnych funkcji.
+## Polski
 
-## 0.1.0 — pierwsze wydanie
+Aktualny zakres Open: wyłącznie kalendarzeligowe.pl — Ekstraklasa, I liga, II liga i cztery grupy III ligi. Pogoda z IMGW-PIB, współrzędne miast z geokodowania Open-Meteo. Obsługa fixtur.es została usunięta z kodu do czasu otrzymania zgody operatora; notatki o niej poniżej dotyczą przyszłych funkcji.
+
+### 1.0.0 — pierwsze wydanie
 - [x] Wybór jednego lub dwóch klubów z katalogu kalendarzeligowe.pl (za zgodą właściciela serwisu).
-- [x] Prognoza, aktualne warunki modelowe i ikony IMGW dla miast w Polsce; geokodowanie Open-Meteo służy tylko do wyszukania współrzędnych.
+- [x] Prognoza, aktualne warunki modelowe i ikony IMGW dla miast w Polsce; geokodowanie Open-Meteo służy do wyszukania współrzędnych.
 - [x] Galeria tapet, wysyłanie zdjęć z telefonu (kod z limitem prób), wygaszacz.
-- [x] Podpisane APK i instalacja przez Downloader.
+- [x] Herby 77 klubów w aplikacji (Ekstraklasa, I, II liga, III liga gr. IV oraz wybrane z gr. I i II); pozostałe pobierane z kalendarzeligowe.pl.
+- [x] Dock: wybór aplikacji, zamiana, przesuwanie pilotem i usuwanie (przytrzymanie OK na kafelku).
+- [ ] Podpisane APK i instalacja przez Downloader.
 - [ ] Test na kilku urządzeniach Android TV / Google TV.
 
-## Jakość terminarzy w ligach świętokrzyskich
-- [ ] Zweryfikować znaczenie `isDateTbd` w API kalendarzeligowe.pl. Dla Alit Ożarów – Neptun Końskie (24.10.2026) oraz Orlicz Suchedniów – Alit Ożarów (31.10.2026) API i Kielecka Piłka podają te same godziny, choć flaga w API ma wartość `true`; obecnie LinarTV ukrywa godzinę.
-- [ ] Porównać więcej najbliższych spotkań IV ligi, okręgówki i klas A/B z Kielecką Piłką oraz sprawdzić dostępność ustrukturyzowanego eksportu. Przed włączeniem tego serwisu jako źródła danych uzgodnić sposób pobierania z redakcją.
+### Dock — kolejne kroki
+- [ ] Przytrzymanie OK w pełnej liście aplikacji: „Dodaj do docka / Usuń z docka”.
+- [ ] Limit kafelków dopasowany do szerokości paska; przy pełnym pasku komunikat zamiast cichego pominięcia.
+- [ ] Odinstalowane aplikacje znikają z docka automatycznie.
+- [ ] Dla aplikacji bez banera — ikona z systemu.
+- [ ] „Przywróć domyślny układ” w ustawieniach.
 
-## 0.2.0 — własne aplikacje na pulpicie
-Użytkownik sam decyduje, które aplikacje są widoczne na pierwszym ekranie i w jakiej kolejności. Dziś pasek ma na stałe YouTube, Netflix, CANAL+ i Spotify.
+### Jakość terminarzy
+- [ ] Zweryfikować znaczenie `isDateTbd` w API kalendarzeligowe.pl — dla części meczów niższych lig API i źródła regionalne podają tę samą godzinę mimo flagi `true`; obecnie LinarTV ukrywa godzinę.
 
-- [ ] **Dodawanie do pulpitu:** w pełnej liście aplikacji przytrzymanie OK (długie naciśnięcie) otwiera menu „Dodaj do pulpitu / Usuń z pulpitu”.
-- [ ] **Przesuwanie pilotem:** na pasku pulpitu długie naciśnięcie OK włącza tryb przesuwania; strzałki ← → przenoszą kafelek, OK zatwierdza, Wstecz anuluje.
-- [ ] **Usuwanie z pulpitu:** z tego samego menu na kafelku pulpitu.
-- [ ] **Zapis wyboru** lokalnie na TV (lista nazw pakietów w kolejności); przy pierwszym uruchomieniu domyślny zestaw z zainstalowanych aplikacji.
-- [ ] **Limit miejsca:** maksymalna liczba kafelków dopasowana do szerokości paska; przy pełnym pasku komunikat zamiast cichego pominięcia.
-- [ ] **Odinstalowane aplikacje** znikają z pulpitu automatycznie.
-- [ ] Logo: dla aplikacji bez własnej grafiki pulpit pokazuje baner lub ikonę z systemu.
-- [ ] Opcja „Przywróć domyślny układ” w ustawieniach.
+### Mecze z całego świata (fixtur.es) — tylko po zgodzie operatora
+Pomysł: **Polska → kalendarzeligowe.pl; świat → kalendarze ICS fixtur.es** (De Agendamakers B.V.). Właściciel projektu wysłał pytanie o warunki korzystania.
+- [ ] Wybór kraj → liga → drużyna w kreatorze, bez pokazywania technicznego wyboru dostawcy.
+- [ ] Parser ICS dla formatu fixtur.es (rozgrywki, kolejka, strefy czasowe, terminy bez potwierdzonej godziny).
+- [ ] Opis wydarzenia z kalendarza w szczegółach meczu (bez ukrywania treści dostawcy) i atrybucja w README.
+- [ ] Herby klubów zagranicznych: inicjały, bez nowych grafik bez zgody.
+- [ ] Domyślnie angielski interfejs, gdy system TV nie jest po polsku.
 
-## 0.3.0 — mecze z całego świata (fixtur.es)
-Drugie źródło terminarzy obok kalendarzeligowe.pl: [fixtur.es](https://fixtur.es/) (De Agendamakers B.V.) — darmowe kalendarze ICS dla drużyn z lig na całym świecie. Otwiera LinarTV na rynki poza Polską.
+### Pełne pokrycie polskich lig (do ustalenia)
+- [ ] Zapytać właściciela kalendarzeligowe.pl o niższe klasy rozgrywkowe.
+- [ ] laczynaspilka.pl (PZPN) wymaga tokenu po weryfikacji reCAPTCHA — nie obchodzimy tego; jedyna droga to oficjalna zgoda PZPN lub wojewódzkiego ZPN.
+- [ ] Nie pobierać danych z serwisów, które zabraniają tego w `robots.txt`.
 
-Docelowy pomysł po uzyskaniu zgody: **Polska → API kalendarzeligowe.pl; Świat → kalendarze ICS fixtur.es**. Obecnie kreator Open przechodzi bezpośrednio do siedmiu obsługiwanych polskich lig; nie zawiera wyboru „Świat” ani połączeń z fixtur.es.
-
-Stan rozpoznania (24.10.2026): w polskiej części serwisu są Ekstraklasa i I liga; niższych lig nie znaleziono. Kalendarz klubowy obejmuje też puchary i sparingi. Część odległych terminów ma godzinę 01:00/02:00 — wygląda na datę bez potwierdzonej godziny, więc aplikacja nie powinna pokazywać jej jako pewnej godziny meczu. Właściciel projektu wysłał już pytanie do operatora o wykorzystanie źródła.
-
-Próba techniczna: strona klubu wskazuje adres `https://ics.fixtur.es/v2/<klub>.ics`; przykładowy kalendarz Arsenalu zawiera także historyczne wydarzenia i ma około 200 kB. Parser musi filtrować daty, rozpoznawać strefy czasowe i oddzielać dopiski z wynikiem/rozgrywkami od nazwy rywala. Nie wyprowadzać adresów ICS wyłącznie z nazwy klubu — korzystać z linku podanego przez dostawcę.
-
-- [x] **Wybór z katalogu:** użytkownik wybiera ligę i klub z listy fixtur.es; nie wpisuje adresu ICS.
-- [x] **Nazwy rozgrywek i kolejki:** nazwy z danych SportsEvent strony klubu; numery kolejek wyłącznie z przypisania meczów na stronach kolejek. Oznaczenia rund pucharowych nie są dostępne w sprawdzonych źródłach — bez zgadywania.
-- [x] **Kontakt:** wysłano pytanie do operatora o wykorzystanie źródła; przed integracją katalogu potwierdzić warunki, stabilny format adresów ICS i dopuszczalną częstotliwość odświeżania.
-- [ ] **Etap 2 — katalog (tylko po zgodzie):** wybór kraj → liga → drużyna lub wyszukiwanie nazwy w kreatorze.
-- [ ] **Kierowanie źródła:** w kreatorze nie pokazywać użytkownikowi technicznego wyboru dostawcy; Polska korzysta z obecnego katalogu, inne kraje z zatwierdzonego katalogu fixtur.es. Zapisać identyfikator dostawcy przy każdym klubie.
-- [ ] **Opisy wydarzeń:** pokazywać opis z kalendarza w szczegółach meczu (fixtur.es umieszcza tam swoje treści promocyjne — nie ukrywać ich).
-- [ ] **Parser ICS:** dopasować do formatu fixtur.es (nazwy drużyn w SUMMARY, rozgrywki, kolejka, wyniki na żywo, różne strefy czasowe).
-- [ ] **Godziny meczów:** rozpoznawać terminy orientacyjne/bez ustalonej godziny; potwierdzić znaczenie tych wpisów z operatorem źródła.
-- [ ] **Herby:** dla zagranicznych klubów inicjały (fallback), bez dołączania nowych grafik bez zgody.
-- [ ] **Język:** domyślnie angielski interfejs, gdy system TV nie jest po polsku.
-- [ ] Atrybucja fixtur.es w README (interfejs pozostaje minimalistyczny, bez logotypów).
-
-## Pełne pokrycie polskich lig (do ustalenia)
-Cel: wszystkie poziomy rozgrywek w Polsce, aż po klasy A i B.
-
-- [ ] Sprawdzić, jak daleko w dół sięga katalog kalendarzeligowe.pl, i zapytać właściciela o brakujące klasy rozgrywkowe.
-- [ ] laczynaspilka.pl (PZPN) ma komplet rozgrywek, ale jego API (`competition-api-pro2.laczynaspilka.pl`) wymaga tokenu wydawanego po weryfikacji reCAPTCHA; bez niego zwraca 401. Nie obchodzimy tego zabezpieczenia — jedyna droga to oficjalna zgoda PZPN lub właściwego Wojewódzkiego ZPN.
-- [ ] Nie pobierać danych z serwisów, które zabraniają tego w `robots.txt` (np. kieleckapilka.pl).
-
-## Później
+### Później
 - Podział `DashboardActivity` na mniejsze klasy.
 
-Sterowanie oświetleniem nie jest częścią tej wersji.
+## English
+
+Current Open scope: kalendarzeligowe.pl only — Ekstraklasa, I liga, II liga and the four III liga groups. Weather from IMGW-PIB, city coordinates from Open-Meteo geocoding. fixtur.es support was removed from the code until the operator agrees; the notes about it below describe future features.
+
+### 1.0.0 — first release
+- [x] One or two clubs from the kalendarzeligowe.pl catalogue (with the site owner's permission).
+- [x] IMGW forecast, current model conditions and icons for Polish cities; Open-Meteo geocoding finds the coordinates.
+- [x] Wallpaper gallery, phone photo upload (code with attempt limit), screensaver.
+- [x] Crests of 77 clubs bundled (Ekstraklasa, I and II liga, III liga group IV and selected group I/II clubs); others fetched from kalendarzeligowe.pl.
+- [x] Dock: choose apps, replace, move with the remote and remove (hold OK on a tile).
+- [ ] Signed APK and Downloader installation.
+- [ ] Test on several Android TV / Google TV devices.
+
+### Dock — next steps
+- [ ] Hold OK in the full app list: "Add to dock / Remove from dock".
+- [ ] Tile limit matching the bar width; a message instead of silently skipping apps.
+- [ ] Uninstalled apps disappear from the dock automatically.
+- [ ] System icon for apps without a banner.
+- [ ] "Restore default layout" in settings.
+
+### Fixture quality
+- [ ] Verify the meaning of `isDateTbd` in the kalendarzeligowe.pl API — for some lower-league matches the API and regional sources give the same kick-off time despite the flag being `true`; LinarTV currently hides the time.
+
+### Matches worldwide (fixtur.es) — only with the operator's consent
+Idea: **Poland → kalendarzeligowe.pl; rest of the world → fixtur.es ICS calendars** (De Agendamakers B.V.). The maintainer has asked about the terms of use.
+- [ ] Country → league → team in the wizard, without exposing the provider choice.
+- [ ] ICS parser for the fixtur.es format (competition, round, time zones, dates without confirmed kick-off).
+- [ ] Event description from the calendar in match details (provider content not hidden) and attribution in the README.
+- [ ] Foreign club crests: initials, no new artwork without consent.
+- [ ] English interface by default when the TV system language is not Polish.
+
+### Full coverage of Polish leagues (to be agreed)
+- [ ] Ask the kalendarzeligowe.pl owner about lower divisions.
+- [ ] laczynaspilka.pl (PZPN) requires a token issued after reCAPTCHA — we do not bypass it; the only route is official consent from PZPN or a regional FA.
+- [ ] Do not fetch data from services that forbid it in `robots.txt`.
+
+### Later
+- Split `DashboardActivity` into smaller classes.
