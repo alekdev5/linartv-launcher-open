@@ -35,9 +35,9 @@
 - **Screensaver** with your photos after 5 minutes of inactivity.
 
 ### Install with Downloader (no computer needed)
-The first signed APK and Downloader code are being prepared. Until the first release appears, build a debug APK from source.
+**Downloader code: `1241090`** (or open `aftv.news/1241090`). It always installs the latest release.
 1. On the TV, install **Downloader** by AFTVnews from the Play Store.
-2. Open it and enter the code published here after the first release.
+2. Open it and enter **1241090**.
 3. Install the APK (allow *Install unknown apps* for Downloader when asked).
 4. Open **LinarTV** from the apps row. To make it your home screen, see your TV's *Default home* / *Home screen* settings.
 
@@ -87,9 +87,9 @@ Otwórz to repozytorium w Codex, Claude Code lub podobnym narzędziu i poproś n
 Opis działania i źródeł danych: [docs/FUNCTIONAL.md](docs/FUNCTIONAL.md) (z diagramami UML).
 
 ### Instalacja przez Downloader (bez komputera)
-Pierwszy podpisany APK i kod Downloadera są w przygotowaniu. Do tego czasu możesz zbudować testowy APK ze źródeł.
+**Kod do Downloadera: `1241090`** (albo adres `aftv.news/1241090`). Zawsze instaluje najnowsze wydanie.
 1. Na telewizorze zainstaluj **Downloader** (AFTVnews) ze Sklepu Play.
-2. Otwórz go i wpisz kod, który opublikujemy tutaj po pierwszym wydaniu.
+2. Otwórz go i wpisz **1241090**.
 3. Zainstaluj APK (zezwól Downloaderowi na *instalowanie nieznanych aplikacji*).
 4. Uruchom **LinarTV** z listy aplikacji. Aby ustawić go jako ekran główny, poszukaj w ustawieniach TV opcji *Domyślny ekran główny*.
 

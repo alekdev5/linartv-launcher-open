@@ -10,7 +10,7 @@ Aktualny zakres Open: wyłącznie kalendarzeligowe.pl — Ekstraklasa, I liga, I
 - [x] Galeria tapet, wysyłanie zdjęć z telefonu (kod z limitem prób), wygaszacz.
 - [x] Herby 77 klubów w aplikacji (Ekstraklasa, I, II liga, III liga gr. IV oraz wybrane z gr. I i II); pozostałe pobierane z kalendarzeligowe.pl.
 - [x] Dock: wybór aplikacji, zamiana, przesuwanie pilotem i usuwanie (przytrzymanie OK na kafelku).
-- [ ] Podpisane APK i instalacja przez Downloader.
+- [x] Podpisane APK i instalacja przez Downloader (wydanie 1.0.0, kod `1241090`).
 - [ ] Test na kilku urządzeniach Android TV / Google TV.
 
 ### Dock — kolejne kroki
@@ -49,7 +49,7 @@ Current Open scope: kalendarzeligowe.pl only — Ekstraklasa, I liga, II liga an
 - [x] Wallpaper gallery, phone photo upload (code with attempt limit), screensaver.
 - [x] Crests of 77 clubs bundled (Ekstraklasa, I and II liga, III liga group IV and selected group I/II clubs); others fetched from kalendarzeligowe.pl.
 - [x] Dock: choose apps, replace, move with the remote and remove (hold OK on a tile).
-- [ ] Signed APK and Downloader installation.
+- [x] Signed APK and Downloader installation (release 1.0.0, code `1241090`).
 - [ ] Test on several Android TV / Google TV devices.
 
 ### Dock — next steps
