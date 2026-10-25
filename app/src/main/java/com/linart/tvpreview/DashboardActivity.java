@@ -145,8 +145,10 @@ public final class DashboardActivity extends Activity {
         final ImageView image;
         final View fallback;
         final String name, league;
-        CrestSlot(ImageView image, View fallback, String name, String league) {
+        final int teamId;
+        CrestSlot(ImageView image, View fallback, String name, String league, int teamId) {
             this.image = image; this.fallback = fallback; this.name = name; this.league = league;
+            this.teamId = teamId;
         }
     }
     private Typeface weatherTypeface;
@@ -312,6 +314,7 @@ public final class DashboardActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        if (crests != null) crests.close();
         if (photoUploadServer != null) {
             photoUploadServer.close();
             photoUploadServer = null;
@@ -404,7 +407,8 @@ public final class DashboardActivity extends Activity {
                     JSONObject row = rows.getJSONObject(i);
                     feed.matches.add(new IcsMatchParser.Match(row.getString("home"), row.getString("away"),
                             row.getLong("startsAt"), row.getBoolean("hasTime"), row.optInt("round", -1),
-                            row.optString("competition", ""), row.optString("stage", "")));
+                            row.optString("competition", ""), row.optString("stage", ""),
+                            row.optInt("homeTeamId", 0), row.optInt("awayTeamId", 0)));
                 }
                 return;
             } catch (Exception e) { feed.matches.clear(); }
@@ -440,6 +444,7 @@ public final class DashboardActivity extends Activity {
                     for (IcsMatchParser.Match match : matches) {
                         JSONObject row = new JSONObject();
                         row.put("home", match.home).put("away", match.away)
+                                .put("homeTeamId", match.homeTeamId).put("awayTeamId", match.awayTeamId)
                                 .put("startsAt", match.startsAt).put("hasTime", match.hasTime)
                                 .put("round", match.round).put("competition", match.competition)
                                 .put("stage", match.stage);
@@ -1651,8 +1656,8 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
             return;
         }
         String crestLeague = CrestRepository.leagueKey(feed.leagueSlug);
-        crestBadge(match.home, crestLeague, x + 14, y + 145);
-        crestBadge(match.away, crestLeague, x + 150, y + 145);
+        crestBadge(match.home, crestLeague, match.homeTeamId, x + 14, y + 145);
+        crestBadge(match.away, crestLeague, match.awayTeamId, x + 150, y + 145);
         String time = match.hasTime ? new SimpleDateFormat("HH:mm", PL).format(new Date(match.startsAt)) : "—:—";
         text(time, 61, color, true, x + 290, y + 163, 190, 75).setGravity(Gravity.CENTER);
         if (live) {
@@ -1706,9 +1711,9 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
                 + tr(" dni", " days"));
     }
 
-    private void crestBadge(String club, String league, int x, int y) {
+    private void crestBadge(String club, String league, int teamId, int x, int y) {
         final int size = 128;
-        Bitmap bitmap = crests.get(club, league);
+        Bitmap bitmap = crests.get(club, league, teamId);
         TextView fallback = text(clubInitials(club), 35,
                 night ? 0xFFF5F8FF : 0xFF183154, true, x + 8, y + 8, size - 16, size - 16);
         fallback.setGravity(Gravity.CENTER);
@@ -1725,7 +1730,7 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
         fallback.setVisibility(bitmap == null ? View.VISIBLE : View.INVISIBLE);
         place(image, x, y, size, size);
         crestSlots.computeIfAbsent(league + "|" + club, k -> new ArrayList<>())
-                .add(new CrestSlot(image, fallback, club, league));
+                .add(new CrestSlot(image, fallback, club, league, teamId));
     }
 
     private String clubInitials(String club) {
@@ -1738,7 +1743,7 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
     private void updateCrestViews(String club) {
         for (List<CrestSlot> slots : crestSlots.values()) for (CrestSlot slot : slots) {
             if (!club.equals(slot.name)) continue;
-            Bitmap bitmap = crests.get(slot.name, slot.league);
+            Bitmap bitmap = crests.get(slot.name, slot.league, slot.teamId);
             if (bitmap == null) continue;
             setCrestBitmap(slot.image, bitmap);
             slot.image.setVisibility(View.VISIBLE);

@@ -21,7 +21,7 @@ import java.util.regex.Pattern;
 
 /** Current leagues and teams from the same public catalogue used by kalendarzeligowe.pl. */
 final class LeagueCatalogClient {
-    static final int CACHE_FORMAT = 2;
+    static final int CACHE_FORMAT = 3;
     private static final String ROOT = "https://kalendarzeligowe.pl/api/";
     private static final List<String> SLUGS = CalendarScope.LEAGUES;
     private static final String[] CATEGORIES = {"EKSTRAKLASA", "FIRST_LEAGUE", "SECOND_LEAGUE",
@@ -133,7 +133,8 @@ final class LeagueCatalogClient {
                         round == null ? "" : round.optString("name", ""),
                         round == null ? -1 : round.optInt("roundNumber", -1));
                 matches.add(new IcsMatchParser.Match(home.optString("name"), away.optString("name"),
-                        startsAt, hasTime, metadata.round, metadata.name, metadata.stage));
+                        startsAt, hasTime, metadata.round, metadata.name, metadata.stage,
+                        home.optInt("id", 0), away.optInt("id", 0)));
             }
             JSONObject meta = response.optJSONObject("meta");
             if (meta == null || page >= meta.optInt("pageCount", page)) break;

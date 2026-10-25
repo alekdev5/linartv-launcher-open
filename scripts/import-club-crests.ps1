@@ -67,6 +67,9 @@ $packs = @{
         'Wiślanie Skawina'='wislanieSkawina.png'
     }}
 }
+$packs['3-liga-grupa-2'] = @{ Folder='iii-liga-gr-ii'; Clubs=[ordered]@{
+    'Polonia Środa Wielkopolska'='polonia-sroda-wielkopolska.png'
+}}
 # Resolve every club association before copying anything.
 $transfers = foreach ($league in $packs.Keys) {
     $pack = $packs[$league]
@@ -93,6 +96,8 @@ foreach ($transfer in $transfers) {
     if ($transfer.Entry) { $transfer.Entry.asset=$transfer.Asset; $transfer.Entry.source='curated' }
     else { $manifest.Add([pscustomobject]@{name=$transfer.Club;league=$transfer.League;source='curated';teamId=0;url='';asset=$transfer.Asset}) }
 }
+$polonia = $manifest | Where-Object { $_.name -eq 'Polonia Środa Wielkopolska' } | Select-Object -First 1
+$polonia.teamId = 88
 $slaskSource = Join-Path $SourceRoot 'ekstraklasa\SlaskWroclaw.png'
 if (Test-Path -LiteralPath $slaskSource) {
     $slask = $manifest | Where-Object { $_.league -eq 'ekstraklasa' -and $_.name -eq 'Śląsk Wrocław' } | Select-Object -First 1
@@ -104,4 +109,4 @@ if (Test-Path -LiteralPath $slaskSource) {
     }
 }
 [IO.File]::WriteAllText($manifestPath, (ConvertTo-Json -InputObject @($manifest.ToArray()) -Depth 8) + "`n", [Text.UTF8Encoding]::new($false))
-Write-Output "Imported and hash-verified $($transfers.Count) crests: 18 I liga + 18 II liga + 18 III liga group IV."
+Write-Output "Imported and hash-verified $($transfers.Count) crests, including Polonia Sroda Wielkopolska."

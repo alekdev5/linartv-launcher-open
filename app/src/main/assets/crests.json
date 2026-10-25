@@ -574,5 +574,13 @@
         "teamId":  0,
         "url":  "",
         "asset":  "crests/curated/ii_liga_zawisza_bydgoszcz.png"
+    },
+    {
+        "name": "Polonia Środa Wielkopolska",
+        "league": "3-liga-grupa-2",
+        "source": "curated",
+        "teamId": 88,
+        "url": "",
+        "asset": "crests/curated/3-liga-grupa-2_polonia_sroda_wielkopolska.png"
     }
 ]

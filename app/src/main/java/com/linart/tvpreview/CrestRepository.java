@@ -1,126 +1,204 @@
 package com.linart.tvpreview;
-
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Handler;
 import android.os.Looper;
-
 import org.json.JSONArray;
 import org.json.JSONObject;
-
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 
-/** Bundled fixture crests plus a quiet, version-aware refresh of the source images. */
+/** Club identity and cached artwork are independent of the selected league. */
 final class CrestRepository {
     interface Listener { void onCrestChanged(String name); }
-    private static final long CHECK_INTERVAL = 7L * 24 * 60 * 60 * 1000;
+    private static final long REFRESH_MS = 7L * 24 * 60 * 60 * 1000;
+    private static final long RETRY_MS = 5L * 60 * 1000;
     private static final String TEAMS = "https://kalendarzeligowe.pl/api/teams?search=";
-    private static final String OFFICIAL = "https://ekstraklasa.org/kluby/";
     private final Context context;
     private final SharedPreferences prefs;
     private final Listener listener;
     private final Handler main = new Handler(Looper.getMainLooper());
-    private final Map<String, Entry> entries = new HashMap<>();
-    private boolean running;
-
+    private final ExecutorService workers = Executors.newFixedThreadPool(2);
+    private final Map<String, Entry> bundled = new HashMap<>(), requestedNames = new HashMap<>();
+    private final Map<Integer, Entry> byId = new HashMap<>();
+    private final CrestNameIndex<Entry> names = new CrestNameIndex<>();
+    private volatile boolean closed;
     private static final class Entry {
-        final String name, league, asset;
-        String source, url;
-        int teamId;
+        final String name, asset;
+        final Set<String> watchers = new HashSet<>();
+        int id;
         Bitmap bitmap;
         boolean loading;
-        Entry(String name, String league, String asset, String source, int teamId, String url) {
-            this.name = name; this.league = league; this.asset = asset;
-            this.source = source; this.teamId = teamId; this.url = url;
-        }
+        long nextCheck;
+        Entry(String name, String asset, int id) { this.name = name; this.asset = asset; this.id = id; }
     }
-
     CrestRepository(Context context, Listener listener) {
         this.context = context.getApplicationContext();
         this.listener = listener;
         prefs = this.context.getSharedPreferences("club_crests", Context.MODE_PRIVATE);
         try {
-            String json = new String(read(this.context.getAssets().open("crests.json"), 100_000), StandardCharsets.UTF_8);
-            JSONArray array = new JSONArray(json);
-            for (int i = 0; i < array.length(); i++) {
-                JSONObject item = array.getJSONObject(i);
-                Entry entry = new Entry(item.getString("name"), item.getString("league"), item.getString("asset"),
-                        item.getString("source"), item.optInt("teamId"), item.getString("url"));
-                entry.url = prefs.getString(versionKey(entry), entry.url);
-                entries.put(key(entry.name, entry.league), entry);
+            JSONArray rows = new JSONArray(new String(read(this.context.getAssets().open("crests.json"), 100_000), StandardCharsets.UTF_8));
+            for (int i = 0; i < rows.length(); i++) {
+                JSONObject row = rows.getJSONObject(i);
+                Entry e = new Entry(row.getString("name"), row.getString("asset"), row.optInt("teamId", 0));
+                bundled.put(key(e.name, row.getString("league")), e);
+                names.add(e.name, e);
+                if (e.id > 0) byId.put(e.id, e);
+                JSONArray aliases = row.optJSONArray("aliases");
+                if (aliases != null) for (int n = 0; n < aliases.length(); n++) names.add(aliases.getString(n), e);
             }
-        } catch (Exception ignored) { }
+        } catch (Exception e) { android.util.Log.w("LinarTV", "Bundled crest index unavailable", e); }
     }
-
-    private static String key(String name, String league) { return league + "|" + name; }
-
     static String leagueKey(String slug) {
         if ("1-liga".equals(slug)) return "i_liga";
         if ("2-liga".equals(slug)) return "ii_liga";
         if ("3-liga-grupa-4".equals(slug)) return "iii_liga";
         return slug;
     }
-    private static String versionKey(Entry entry) { return "url_" + key(entry.name, entry.league); }
-    private File cacheFile(Entry entry) {
-        File folder = new File(context.getFilesDir(), "crests");
-        if (!folder.exists()) folder.mkdirs();
-        return new File(folder, Integer.toHexString(key(entry.name, entry.league).hashCode()) + ".img");
-    }
-
-    Bitmap get(String name, String league) {
-        Entry entry = entries.get(key(name, league));
-        if (entry == null) return null;
-        if (entry.bitmap != null && !entry.bitmap.isRecycled()) return entry.bitmap;
-        if (!entry.loading) {
-            entry.loading = true;
-            final Entry targetEntry = entry;
-            String requestedUrl = entry.url;
-            new Thread(() -> {
-                Bitmap loaded = load(targetEntry);
-                main.post(() -> {
-                    targetEntry.loading = false;
-                    if (entries.get(key(targetEntry.name, targetEntry.league)) != targetEntry
-                            || !requestedUrl.equals(targetEntry.url)) {
-                        if (loaded != null) loaded.recycle();
-                        return;
-                    }
-                    targetEntry.bitmap = loaded;
-                    if (loaded != null) listener.onCrestChanged(targetEntry.name);
-                });
-            }, "crest-decode").start();
+    private static String key(String name, String league) { return league + "|" + CrestNameIndex.normalize(name); }
+    Bitmap get(String name, String league, int id) { return get(name, league, id, false); }
+    private Bitmap get(String name, String league, int id, boolean force) {
+        if (closed) return null;
+        Entry e = bundled.get(key(name, league));
+        if (e == null) {
+            Entry candidate = names.find(name);
+            if (candidate != null && candidate.asset != null) e = candidate;
         }
-        return null;
+        if (e != null && id > 0 && e.id > 0 && e.id != id) e = null;
+        if (e == null && id > 0) e = byId.get(id);
+        if (e == null && id == 0) e = requestedNames.get(CrestNameIndex.normalize(name));
+        if (e == null) {
+            int knownId = id > 0 ? id : prefs.getInt("club_id_" + CrestNameIndex.normalize(name), 0);
+            e = knownId > 0 ? byId.get(knownId) : null;
+            if (e == null) {
+                e = new Entry(name, null, knownId);
+                requestedNames.put(CrestNameIndex.normalize(name), e);
+                if (knownId > 0) byId.put(knownId, e);
+            }
+        }
+        if (e.id == 0 && id > 0) e.id = id;
+        if (e.id > 0) byId.put(e.id, e);
+        e.watchers.add(name);
+        long now = System.currentTimeMillis();
+        if (!e.loading && (e.bitmap == null || e.asset == null && (force || now >= e.nextCheck))
+                && (force || now >= e.nextCheck)) request(e, force);
+        return e.bitmap;
     }
-
-    private Bitmap load(Entry entry) {
-        File cached = cacheFile(entry);
+    private File cacheFile(int id) {
+        File dir = new File(context.getFilesDir(), "crests-by-team");
+        dir.mkdirs();
+        return new File(dir, "team-" + id + ".img");
+    }
+    private void request(Entry e, boolean force) {
+        e.loading = true;
+        int id = e.id;
+        try { workers.execute(() -> load(e, id, force)); }
+        catch (RejectedExecutionException stopped) { e.loading = false; }
+    }
+    private void load(Entry e, int id, boolean force) {
         try {
-            boolean bundledPreferred = entry.asset != null && entry.asset.startsWith("crests/curated/")
-                    && ("curated".equals(entry.source) || !entry.url.contains("width=960"));
-            Bitmap bitmap = null;
-            if (!bundledPreferred && cached.isFile()) bitmap = decode(new java.io.FileInputStream(cached));
-            if (bitmap == null && entry.asset != null)
-                bitmap = decode(context.getAssets().open(entry.asset));
-            if (bitmap == null && bundledPreferred && cached.isFile())
-                bitmap = decode(new java.io.FileInputStream(cached));
-            return bitmap;
-        } catch (Exception ignored) { }
-        return null;
+            if (closed) return;
+            if (e.asset != null) {
+                Bitmap image = decode(context.getAssets().open(e.asset));
+                finish(e, id, image, image == null ? RETRY_MS : Long.MAX_VALUE, "bundled");
+                return;
+            }
+            if (id <= 0) id = findTeamId(e.name);
+            if (id <= 0) { finish(e, 0, null, RETRY_MS, "missing"); return; }
+            File cached = cacheFile(id);
+            Bitmap image = cached.isFile() ? decode(new java.io.FileInputStream(cached)) : null;
+            long now = System.currentTimeMillis(), downloaded = prefs.getLong("downloaded_" + id, 0);
+            if (image != null) {
+                if (!force && now - downloaded < REFRESH_MS) {
+                    finish(e, id, image, REFRESH_MS - Math.max(0, now - downloaded), "disk"); return;
+                }
+                publish(e, id, image, "disk");
+            }
+            if (!force && now < prefs.getLong("retry_" + id, 0)) {
+                finish(e, id, null, RETRY_MS, "cooldown"); return;
+            }
+            prefs.edit().putLong("retry_" + id, now + RETRY_MS).apply();
+            byte[] bytes = fetch("https://kalendarzeligowe.pl/api/teams/" + id + "/logo", 5_000_000);
+            image = decode(new ByteArrayInputStream(bytes));
+            if (image == null) throw new IllegalStateException("Unsupported crest image");
+            File temporary = new File(cached.getParentFile(), cached.getName() + ".tmp");
+            try {
+                Files.write(temporary.toPath(), bytes);
+                Files.move(temporary.toPath(), cached.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            } finally { if (temporary.isFile()) temporary.delete(); }
+            prefs.edit().putLong("downloaded_" + id, now)
+                    .putInt("club_id_" + CrestNameIndex.normalize(e.name), id).apply();
+            finish(e, id, image, REFRESH_MS, "network");
+        } catch (Exception unavailable) { finish(e, id, null, RETRY_MS, "unavailable"); }
+    }
+    private void publish(Entry e, int id, Bitmap image, String source) {
+        main.post(() -> {
+            if (closed) { if (image != null && image != e.bitmap) image.recycle(); return; }
+            if (id > 0) { e.id = id; byId.put(id, e); }
+            if (image != null) {
+                e.bitmap = image;
+                for (String name : e.watchers) listener.onCrestChanged(name);
+            }
+            if ((context.getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0)
+                android.util.Log.d("LinarTVCrests", "source=" + source + " teamId=" + id);
+        });
+    }
+    private void finish(Entry e, int id, Bitmap image, long delay, String source) {
+        main.post(() -> {
+            e.loading = false;
+            e.nextCheck = delay == Long.MAX_VALUE ? Long.MAX_VALUE : System.currentTimeMillis() + delay;
+        });
+        publish(e, id, image, source);
+    }
+    void refreshIfDue(List<IcsMatchParser.Match> first, String firstLeague,
+                      List<IcsMatchParser.Match> second, String secondLeague, boolean forced) {
+        prefetch(first, firstLeague, forced); prefetch(second, secondLeague, forced);
+    }
+    private void prefetch(List<IcsMatchParser.Match> matches, String league, boolean forced) {
+        int count = 0;
+        long now = System.currentTimeMillis();
+        for (IcsMatchParser.Match match : matches) {
+            if (match.startsAt + 105L * 60 * 1000 < now) continue;
+            get(match.home, leagueKey(league), match.homeTeamId, forced);
+            get(match.away, leagueKey(league), match.awayTeamId, forced);
+            if (++count == 2) break;
+        }
+    }
+    private int findTeamId(String name) throws Exception {
+        JSONArray rows = new JSONArray(new String(fetch(TEAMS + URLEncoder.encode(name, "UTF-8"), 100_000), StandardCharsets.UTF_8));
+        int found = 0;
+        String normalized = CrestNameIndex.normalize(name);
+        for (int i = 0; i < rows.length(); i++) {
+            JSONObject row = rows.getJSONObject(i);
+            if (!row.optBoolean("hasLogo") || !normalized.equals(CrestNameIndex.normalize(row.optString("name")))) continue;
+            int id = row.optInt("id", 0);
+            if (found > 0 && found != id) return 0;
+            found = id;
+        }
+        return found;
+    }
+    void close() {
+        closed = true;
+        workers.shutdownNow();
+        main.removeCallbacksAndMessages(null);
     }
 
     private static Bitmap decode(InputStream stream) throws Exception {
@@ -139,99 +217,6 @@ final class CrestRepository {
                 scaled.inSampleSize *= 2;
             return BitmapFactory.decodeByteArray(data, 0, data.length, scaled);
         }
-    }
-
-    void refreshIfDue(List<IcsMatchParser.Match> firstClub, String firstLeague,
-                      List<IcsMatchParser.Match> secondClub, String secondLeague, boolean forced) {
-        long now = System.currentTimeMillis();
-        if (running || !forced && now - prefs.getLong("last_check", 0) < CHECK_INTERVAL) return;
-        Map<String, String> clubs = new HashMap<>();
-        for (IcsMatchParser.Match match : firstClub) {
-            String league = leagueKey(firstLeague);
-            clubs.put(match.home, league); clubs.put(match.away, league);
-        }
-        for (IcsMatchParser.Match match : secondClub) {
-            String league = leagueKey(secondLeague);
-            clubs.put(match.home, league); clubs.put(match.away, league);
-        }
-        if (clubs.isEmpty()) return;
-        running = true;
-        prefs.edit().putLong("last_check", now).apply();
-        new Thread(() -> refresh(clubs), "club-crest-refresh").start();
-    }
-
-    private void refresh(Map<String, String> clubs) {
-        Map<String, String> official = officialCrests();
-        for (Map.Entry<String, String> club : clubs.entrySet()) {
-            String name = club.getKey(), league = club.getValue();
-            Entry old = entries.get(key(name, league));
-            String source = old == null ? ("ekstraklasa".equals(league) && official.containsKey(alias(name))
-                    ? "ekstraklasa" : "kalendarzeligowe") : old.source;
-            if ("curated".equals(source)) continue;
-            String url = "ekstraklasa".equals(source) ? official.get(alias(name)) : null;
-            int teamId = old == null ? 0 : old.teamId;
-            try {
-                if (url == null && !"ekstraklasa".equals(source)) {
-                    JSONObject team = findTeam(name);
-                    if (team == null) continue;
-                    teamId = team.getInt("id");
-                    url = "https://kalendarzeligowe.pl/api/teams/" + teamId + "/logo";
-                    String version = team.optString("crestVer", "");
-                    if (!version.isEmpty() && !"null".equals(version)) url += "?v=" + version;
-                }
-                if (url == null) continue;
-                Entry target = old == null ? new Entry(name, league, null, source, teamId, url) : old;
-                if (old != null && old.asset != null && old.asset.startsWith("crests/curated/")
-                        && sameSourceImage(url, old.url)) continue;
-                if (old != null && url.equals(old.url) && (old.asset != null || cacheFile(old).isFile())) continue;
-                byte[] image = fetch(url, 5_000_000);
-                if (!isImage(image) || BitmapFactory.decodeByteArray(image, 0, image.length) == null) continue;
-                File destination = cacheFile(target);
-                File temp = new File(destination.getParentFile(), destination.getName() + ".tmp");
-                try (FileOutputStream output = new FileOutputStream(temp)) { output.write(image); }
-                if (destination.exists() && !destination.delete()) continue;
-                if (!temp.renameTo(destination)) continue;
-                final String verifiedUrl = url;
-                final int verifiedId = teamId;
-                main.post(() -> {
-                    target.url = verifiedUrl;
-                    target.teamId = verifiedId;
-                    target.bitmap = null;
-                    entries.put(key(name, league), target);
-                    prefs.edit().putString(versionKey(target), verifiedUrl).apply();
-                    listener.onCrestChanged(name);
-                });
-            } catch (Exception ignored) { }
-        }
-        main.post(() -> running = false);
-    }
-
-    private JSONObject findTeam(String name) throws Exception {
-        JSONArray array = new JSONArray(new String(fetch(TEAMS + URLEncoder.encode(name, "UTF-8"), 100_000), StandardCharsets.UTF_8));
-        for (int i = 0; i < array.length(); i++) {
-            JSONObject team = array.getJSONObject(i);
-            if (name.equalsIgnoreCase(team.optString("name")) && team.optBoolean("hasLogo")) return team;
-        }
-        return null;
-    }
-
-    private Map<String, String> officialCrests() {
-        Map<String, String> result = new HashMap<>();
-        try {
-            String html = new String(fetch(OFFICIAL, 500_000), StandardCharsets.UTF_8);
-            Matcher match = Pattern.compile("<img[^>]+src=\"(https://media\\.cms\\.ekstraklasa\\.org/[^\"]+)\"[^>]+alt=\"([^\"]+)\"").matcher(html);
-            while (match.find()) result.put(match.group(2), match.group(1).split("\\?")[0] + "?width=960&format=webp");
-        } catch (Exception ignored) { }
-        return result;
-    }
-
-    private static String alias(String name) {
-        return "Zagłębie Lubin".equals(name) ? "KGHM Zagłębie Lubin" : name;
-    }
-
-    private static boolean sameSourceImage(String a, String b) {
-        return a != null && b != null && !b.isEmpty()
-                && a.split("\\?")[0].equals(b.split("\\?")[0]);
     }
 
     private static byte[] fetch(String url, int limit) throws Exception {
@@ -256,12 +241,5 @@ final class CrestRepository {
             }
             return bytes.toByteArray();
         }
-    }
-
-    private static boolean isImage(byte[] image) {
-        return image.length >= 12 && (image[0] == (byte) 0x89 && image[1] == 'P' && image[2] == 'N' && image[3] == 'G'
-                || image[0] == 'G' && image[1] == 'I' && image[2] == 'F'
-                || image[0] == (byte) 0xff && image[1] == (byte) 0xd8
-                || image[0] == 'R' && image[1] == 'I' && image[8] == 'W' && image[9] == 'E');
     }
 }
