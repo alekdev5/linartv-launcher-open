@@ -29,11 +29,16 @@ for name in tracked.split(b"\0"):
             or relative.name in BLOCKED_NAMES
             or relative.suffix.lower() in {".apk", ".aab", ".jks", ".keystore", ".pem", ".p12"}):
         issues.append(f"Forbidden tracked file: {relative}")
+# Git-ignored files (keystore.properties, local.properties) never reach the repository or a
+# release, so they may exist locally; release signing needs keystore.properties on disk.
+ignored_output = subprocess.run(["git", "ls-files", "--others", "--ignored", "--exclude-standard", "-z"],
+                                cwd=ROOT, capture_output=True, check=True).stdout
+ignored = {Path(name.decode("utf-8", errors="replace")) for name in ignored_output.split(b"\0") if name}
 for path in ROOT.rglob("*"):
     if not path.is_file() or ".git" in path.relative_to(ROOT).parts:
         continue
     relative = path.relative_to(ROOT)
-    if any(part in BLOCKED_PARTS for part in relative.parts):
+    if any(part in BLOCKED_PARTS for part in relative.parts) or relative in ignored:
         continue
     if path.name in BLOCKED_NAMES or path.suffix.lower() in {".apk", ".aab", ".jks", ".keystore", ".pem", ".p12"}:
         issues.append(f"Forbidden file: {relative}")

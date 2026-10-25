@@ -54,6 +54,13 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+
+    lint {
+        // LinarTV is distributed through GitHub Releases and Downloader, not Google Play.
+        // targetSdk 28 is deliberate: raising it changes launcher behaviour on newer TVs
+        // (e.g. package visibility for the app dock) and needs its own migration.
+        disable 'ExpiredTargetSdkVersion'
+    }
 }
 
 dependencies {
