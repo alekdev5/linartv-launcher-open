@@ -28,7 +28,7 @@
 
 ### Features
 - **Your clubs' fixtures** — pick one or two teams from Ekstraklasa, I liga, II liga or any of the four III liga groups on [kalendarzeligowe.pl](https://kalendarzeligowe.pl); fixtures update daily, with club crests.
-- **Weather for Polish cities** — current model conditions, hourly and 7-day forecast with weather icons from IMGW-PIB.
+- **Weather for any city in the world** — current conditions, hourly and 7-day forecast from Open-Meteo, with Meteocons weather icons.
 - **Day and night modes**, app dock and full app drawer, quick access to TV inputs.
 - **Polish or English interface** and Celsius or Fahrenheit temperature, selectable in LinarTV settings.
 - **Wallpapers from your phone** — scan a QR code and upload photos over your home Wi-Fi (6-digit code, attempt limit).
@@ -39,7 +39,11 @@
 1. On the TV, install **Downloader** by AFTVnews from the Play Store.
 2. Open it and enter **1241090**.
 3. Install the APK (allow *Install unknown apps* for Downloader when asked).
-4. Open **LinarTV** from the apps row. To make it your home screen, see your TV's *Default home* / *Home screen* settings.
+4. Open **LinarTV** from the apps row. To make it your home screen, see your TV's *Default home* / *Home screen* settings, or set it from a computer:
+   ```text
+   adb shell cmd package set-home-activity --user 0 io.github.domlin92.linartv.open/com.linart.tvpreview.DashboardActivity
+   ```
+   As the home screen, LinarTV opens after the TV starts and when it wakes from standby. On devices with plain Android (e.g. projectors) it is also listed among normal apps.
 
 Or download `LinarTV.apk` directly from [Releases](https://github.com/domlin92/linartv-launcher-open/releases/latest).
 
@@ -58,10 +62,9 @@ Signed releases: see [docs/RELEASING.md](docs/RELEASING.md).
 ### Credits
 - Inspired by and started inside [Clean Your TV](https://cleanyour.tv/) by Gathin (MIT).
 - Fixtures: [kalendarzeligowe.pl](https://kalendarzeligowe.pl) — used with the site owner's permission.
-- Weather data and icons: IMGW-PIB (meteo.imgw.pl). The data have been processed.
-- Polish city search: Open-Meteo geocoding / GeoNames (CC BY 4.0), used only to find coordinates.
-- Weather Icons font by Erik Flowers (SIL OFL 1.1).
-- Weather symbols use IMGW's day and night variants.
+- Weather data: [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0); city search: Open-Meteo geocoding / GeoNames (CC BY 4.0).
+- Weather icons: [Meteocons](https://github.com/basmilius/weather-icons) by Bas Milius (MIT), bundled in the app.
+- Weather Icons font by Erik Flowers (SIL OFL 1.1) — used for the °C / °F sign.
 - Club crests belong to their clubs — see [docs/CRESTS.md](docs/CRESTS.md).
 
 ### License
@@ -75,7 +78,7 @@ Code: [MIT](LICENSE). Club crests and third-party logos are not covered by the c
 
 ### Funkcje
 - **Terminarz Twoich klubów** — wybierz jedną lub dwie drużyny z Ekstraklasy, I ligi, II ligi lub dowolnej z czterech grup III ligi na [kalendarzeligowe.pl](https://kalendarzeligowe.pl); terminarze odświeżają się codziennie, z herbami klubów.
-- **Pogoda dla miast w Polsce** — aktualne warunki modelowe, prognoza godzinowa i 7-dniowa oraz ikony IMGW-PIB. Miasto zmienisz w *Ustawieniach*.
+- **Pogoda dla dowolnego miasta na świecie** — aktualne warunki, prognoza godzinowa i 7-dniowa z Open-Meteo oraz ikony Meteocons. Miasto zmienisz w *Ustawieniach*.
 - **Tryb dzienny i nocny**, pasek aplikacji i pełna lista aplikacji, szybki dostęp do źródeł TV.
 - **Język polski lub angielski** oraz temperatura w stopniach Celsjusza lub Fahrenheita, wybierane w ustawieniach LinarTV.
 - **Tapety z telefonu** — zeskanuj kod QR i wyślij zdjęcia przez domowe Wi-Fi (6-cyfrowy kod z limitem prób).
@@ -91,7 +94,11 @@ Opis działania i źródeł danych: [docs/FUNCTIONAL.md](docs/FUNCTIONAL.md) (z 
 1. Na telewizorze zainstaluj **Downloader** (AFTVnews) ze Sklepu Play.
 2. Otwórz go i wpisz **1241090**.
 3. Zainstaluj APK (zezwól Downloaderowi na *instalowanie nieznanych aplikacji*).
-4. Uruchom **LinarTV** z listy aplikacji. Aby ustawić go jako ekran główny, poszukaj w ustawieniach TV opcji *Domyślny ekran główny*.
+4. Uruchom **LinarTV** z listy aplikacji. Aby ustawić go jako ekran główny, poszukaj w ustawieniach TV opcji *Domyślny ekran główny* albo ustaw go z komputera:
+   ```text
+   adb shell cmd package set-home-activity --user 0 io.github.domlin92.linartv.open/com.linart.tvpreview.DashboardActivity
+   ```
+   Jako ekran główny LinarTV otwiera się po włączeniu telewizora i po wybudzeniu z czuwania. Na urządzeniach ze zwykłym Androidem (np. projektory) widać go też na liście zwykłych aplikacji.
 
 Plik `LinarTV.apk` możesz też pobrać bezpośrednio z [Releases](https://github.com/domlin92/linartv-launcher-open/releases/latest).
 
@@ -105,10 +112,9 @@ Podpisane wydania: [docs/RELEASING.md](docs/RELEASING.md). Plan prac: [docs/ROAD
 ### Podziękowania
 - Projekt powstał na bazie i z inspiracji [Clean Your TV](https://cleanyour.tv/) (Gathin, MIT).
 - Terminarze: [kalendarzeligowe.pl](https://kalendarzeligowe.pl) — za zgodą właściciela serwisu.
-- Pogoda i ikony: IMGW-PIB (meteo.imgw.pl). Dane IMGW-PIB zostały przetworzone.
-- Wyszukiwanie polskich miejscowości: geokodowanie Open-Meteo / GeoNames (CC BY 4.0), wyłącznie do ustalania współrzędnych.
-- Font Weather Icons: Erik Flowers (SIL OFL 1.1).
-- Symbole pogody pochodzą z IMGW i uwzględniają porę dnia.
+- Dane pogodowe: [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0); wyszukiwanie miast: geokodowanie Open-Meteo / GeoNames (CC BY 4.0).
+- Ikony pogody: [Meteocons](https://github.com/basmilius/weather-icons), Bas Milius (MIT), wbudowane w aplikację.
+- Font Weather Icons: Erik Flowers (SIL OFL 1.1) — znak °C / °F.
 - Herby należą do klubów — zobacz [docs/CRESTS.md](docs/CRESTS.md).
 
 ### Licencja

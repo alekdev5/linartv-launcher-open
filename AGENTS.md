@@ -8,7 +8,7 @@ Plik czytają Codex, Claude Code i podobne narzędzia (Claude Code wczytuje go p
 ## English
 
 ### What this project is
-LinarTV Open is an Android TV home screen (launcher) for Polish football fans: clock, IMGW weather for a Polish city, fixtures of one or two clubs from kalendarzeligowe.pl, an app dock, wallpapers and a screensaver. One activity (`DashboardActivity`), plain Java, no Kotlin, no Compose. Read [docs/FUNCTIONAL.md](docs/FUNCTIONAL.md) first.
+LinarTV Open is an Android TV home screen (launcher) for Polish football fans: clock, Open-Meteo weather for any city worldwide, fixtures of one or two clubs from kalendarzeligowe.pl, an app dock, wallpapers and a screensaver. One activity (`DashboardActivity`), plain Java, no Kotlin, no Compose. Read [docs/FUNCTIONAL.md](docs/FUNCTIONAL.md) first.
 
 ### Typical user request: "install LinarTV on my TV"
 Work step by step and tell the user what each step does. Ask before every step that changes the TV.
@@ -44,7 +44,7 @@ Work step by step and tell the user what each step does. Ask before every step t
 - Run `scripts/test-local.ps1` (or the Java checks in `tests/`) and `./gradlew :app:assembleDebug` before proposing a change.
 - **Versioning:** every published build bumps `versionCode` by 1 and sets a semantic `versionName` in `app/build.gradle`; tag releases `vX.Y.Z`. See [docs/RELEASING.md](docs/RELEASING.md).
 - **Documentation is bilingual** (Polish + English). Update both languages.
-- **Data sources:** only kalendarzeligowe.pl (used with the owner's permission), IMGW-PIB (attribution required: "Źródłem pochodzenia danych jest IMGW-PIB… dane zostały przetworzone") and Open-Meteo geocoding (coordinates only). Do not add new sources without the maintainer's consent; never bypass reCAPTCHA or ignore `robots.txt`.
+- **Data sources:** only kalendarzeligowe.pl (used with the owner's permission) and Open-Meteo forecast + geocoding (CC BY 4.0, attribution "Open-Meteo.com" shown in the weather details). Weather icons are the bundled Meteocons (MIT, `assets/meteocons`). Do not add new sources without the maintainer's consent; never bypass reCAPTCHA or ignore `robots.txt`.
 - **Club crests** are third-party marks, not MIT. Add them only from the maintainer's `club-crests` packs via `scripts/import-club-crests.ps1`, then `python scripts/shrink-crests.py`. See [docs/CRESTS.md](docs/CRESTS.md).
 - **No secrets:** never commit keystores, passwords, IP addresses of the user's network or personal photos. Run `python scripts/audit_public.py` before every push.
 - Keep the remote-control (D-pad) navigation working: every new view must be focusable and reachable with arrows; Back closes popups first.
@@ -54,7 +54,7 @@ Work step by step and tell the user what each step does. Ask before every step t
 ## Polski
 
 ### Czym jest projekt
-LinarTV Open to ekran główny (launcher) dla Android TV dla kibiców polskiej piłki: zegar, pogoda IMGW dla polskiego miasta, terminarz jednego lub dwóch klubów z kalendarzeligowe.pl, dock aplikacji, tapety i wygaszacz. Jedna aktywność (`DashboardActivity`), czysta Java, bez Kotlina i Compose. Najpierw przeczytaj [docs/FUNCTIONAL.md](docs/FUNCTIONAL.md).
+LinarTV Open to ekran główny (launcher) dla Android TV dla kibiców polskiej piłki: zegar, pogoda Open-Meteo dla dowolnego miasta na świecie, terminarz jednego lub dwóch klubów z kalendarzeligowe.pl, dock aplikacji, tapety i wygaszacz. Jedna aktywność (`DashboardActivity`), czysta Java, bez Kotlina i Compose. Najpierw przeczytaj [docs/FUNCTIONAL.md](docs/FUNCTIONAL.md).
 
 ### Typowa prośba: „zainstaluj LinarTV na moim telewizorze”
 Pracuj krok po kroku i mów użytkownikowi, co robi każdy krok. Pytaj przed każdym krokiem, który zmienia coś na telewizorze.
@@ -75,7 +75,7 @@ Pracuj krok po kroku i mów użytkownikowi, co robi każdy krok. Pytaj przed ka�
 - Przed propozycją zmiany uruchom `scripts/test-local.ps1` i `./gradlew :app:assembleDebug`.
 - **Wersjonowanie:** każde publikowane wydanie zwiększa `versionCode` o 1 i ustawia `versionName` (semver) w `app/build.gradle`; tag `vX.Y.Z`. Zob. [docs/RELEASING.md](docs/RELEASING.md).
 - **Dokumentacja jest dwujęzyczna** (polski + angielski) — aktualizuj obie wersje.
-- **Źródła danych:** tylko kalendarzeligowe.pl (za zgodą właściciela), IMGW-PIB (z wymaganym podpisem źródła) i geokodowanie Open-Meteo (tylko współrzędne). Bez zgody opiekuna nie dodawaj nowych źródeł; nigdy nie obchodź reCAPTCHA ani `robots.txt`.
+- **Źródła danych:** tylko kalendarzeligowe.pl (za zgodą właściciela) oraz prognoza i geokodowanie Open-Meteo (CC BY 4.0, podpis „Open-Meteo.com” w szczegółach pogody). Ikony pogody to wbudowane Meteocons (MIT, `assets/meteocons`). Bez zgody opiekuna nie dodawaj nowych źródeł; nigdy nie obchodź reCAPTCHA ani `robots.txt`.
 - **Herby** to znaki klubów, nie MIT. Dodawaj je tylko z paczek `club-crests` opiekuna przez `scripts/import-club-crests.ps1`, potem `python scripts/shrink-crests.py`. Zob. [docs/CRESTS.md](docs/CRESTS.md).
 - **Bez sekretów:** nie commituj kluczy, haseł, adresów sieci użytkownika ani zdjęć. Przed każdym pushem uruchom `python scripts/audit_public.py`.
 - Zachowaj sterowanie pilotem: każdy nowy element musi mieć fokus i być osiągalny strzałkami; Wstecz najpierw zamyka okna.

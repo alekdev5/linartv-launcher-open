@@ -2,9 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
-    <uses-feature android:name="android.software.leanback" android:required="true" />
+    <!-- Not required: projectors and boxes with plain Android (e.g. Wanbo T2 Max) have no leanback. -->
+    <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <queries>
         <intent>
@@ -20,10 +22,25 @@
     <application android:label="LinarTV Open" android:icon="@drawable/ic_linar_tv"
         android:banner="@drawable/banner_linar_tv"
         android:theme="@android:style/Theme.Material.NoActionBar" android:usesCleartextTraffic="true">
+        <service android:name=".WakeService" android:exported="false" />
+        <receiver android:name=".BootReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
         <activity android:name=".DashboardActivity" android:exported="true" android:screenOrientation="landscape">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+                <!-- Icon in the app list of plain Android devices (projectors, boxes). -->
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Lets LinarTV be chosen as the default home screen. -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
         <service android:name=".SpotifySessionListener" android:label="LinarTV · Spotify"

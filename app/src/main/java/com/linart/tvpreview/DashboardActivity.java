@@ -159,7 +159,7 @@ public final class DashboardActivity extends Activity {
         }
     }
     private Typeface weatherTypeface;
-    private ImgwIconRepository weatherIcons;
+    private MeteoconIcons weatherIcons;
     private JSONObject forecast;
     private long forecastUpdatedAt;
     private long forecastAttemptedAt;
@@ -266,6 +266,8 @@ public final class DashboardActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        // As the default home screen, keep the wake monitor running even without a reboot.
+        if (BootReceiver.isDefaultHome(this)) BootReceiver.startWakeMonitor(this);
         getWindow().getDecorView().setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         DisplayMetrics metrics = getResources().getDisplayMetrics();
@@ -278,19 +280,17 @@ public final class DashboardActivity extends Activity {
         forecastUpdatedAt = saved.getLong("weather_updated", 0);
         try { forecast = new JSONObject(saved.getString("weather_json", "")); }
         catch (Exception ignored) { forecast = null; }
-        if (forecast != null && !"IMGW".equals(forecast.optString("provider"))) {
+        // Weather comes from Open-Meteo for any city; IMGW data saved by 1.0.0 is dropped.
+        if (forecast != null && !"Open-Meteo".equals(forecast.optString("provider"))) {
             forecast = null;
             forecastUpdatedAt = 0;
         }
         if (forecast != null && (forecast.optJSONArray("hourly") == null
-                || forecast.optInt("icon_format") != 3)) forecastUpdatedAt = 0;
+                || forecast.optInt("icon_format") != 4)) forecastUpdatedAt = 0;
         cityName = saved.getString("city_name", "Kraków");
         cityLatitude = Double.longBitsToDouble(saved.getLong("city_lat", Double.doubleToLongBits(50.0614)));
         cityLongitude = Double.longBitsToDouble(saved.getLong("city_lon", Double.doubleToLongBits(19.9366)));
-        if (cityLatitude < 49 || cityLatitude > 55 || cityLongitude < 14 || cityLongitude > 24.2) {
-            cityName = "Kraków"; cityLatitude = 50.0614; cityLongitude = 19.9366;
-        }
-        weatherIcons = new ImgwIconRepository(this);
+        weatherIcons = new MeteoconIcons(this);
         if (forecast != null && (!cityName.equals(forecast.optString("city"))
                 || forecast.optJSONObject("current") == null)) forecastUpdatedAt = 0;
         crests = new CrestRepository(this, this::updateCrestViews);
@@ -355,7 +355,7 @@ public final class DashboardActivity extends Activity {
         long requestedLocationVersion = weatherLocationVersion;
         new Thread(() -> {
             JSONObject result = null;
-            try { result = ImgwForecastClient.fetch(requestedLatitude, requestedLongitude, requestedCity); }
+            try { result = PublicForecastClient.fetch(requestedLatitude, requestedLongitude).put("city", requestedCity); }
             catch (Exception e) {
                 android.util.Log.w("LinarTV", "Weather refresh failed", e);
                 result = null;
@@ -1172,13 +1172,13 @@ public final class DashboardActivity extends Activity {
         status.setText(tr("Szukanie miasta…", "Searching for city…"));
         results.removeAllViews();
         new Thread(() -> {
-            List<PolishCityClient.Place> places;
-            try { places = PolishCityClient.searchPlaces(name, english ? "en" : "pl"); }
+            List<PublicForecastClient.Place> places;
+            try { places = PublicForecastClient.searchPlaces(name, english ? "en" : "pl"); }
             catch (Exception e) {
                 android.util.Log.w("LinarTV", "City search failed", e);
                 places = null;
             }
-            final List<PolishCityClient.Place> found = places;
+            final List<PublicForecastClient.Place> found = places;
             handler.post(() -> {
                 if (isFinishing() || isDestroyed() || !dialog.isShowing()) return;
                 if (found == null) {
@@ -1191,7 +1191,7 @@ public final class DashboardActivity extends Activity {
                     return;
                 }
                 status.setText(tr("Wybierz właściwe miasto:", "Choose the correct city:"));
-                for (PolishCityClient.Place place : found) {
+                for (PublicForecastClient.Place place : found) {
                     TextView item = setupButton(place.label());
                     LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, px(62));
                     params.bottomMargin = px(8);
@@ -1313,7 +1313,7 @@ public final class DashboardActivity extends Activity {
         close.requestFocus();
     }
 
-    private void saveCity(PolishCityClient.Place place) {
+    private void saveCity(PublicForecastClient.Place place) {
         weatherLocationVersion++;
         cityName = place.name;
         cityLatitude = place.latitude;
@@ -1846,13 +1846,55 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
     }
 
     private void placeForecastIcon(String code, int x, int y, int width, int height) {
-        View fallback = new WeatherIcon(imgwFallbackCondition(code));
-        place(fallback, x, y, width, height);
         ImageView image = new ImageView(this);
         image.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        image.setVisibility(View.INVISIBLE);
+        image.setImageBitmap(weatherIcons.bitmap(code, px(Math.max(width, height))));
         place(image, x, y, width, height);
-        weatherIcons.bind(code, image, fallback);
+    }
+
+    private static void setLeftPx(View view, int leftPx, int widthPx) {
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) view.getLayoutParams();
+        lp.leftMargin = leftPx;
+        lp.width = Math.max(1, widthPx);
+        view.setLayoutParams(lp);
+    }
+
+    /**
+     * City name sized to its length: one line as large as fits (up to 40, close to the
+     * temperature digits); if one line would drop below 24, two lines up to 28. Lines break only
+     * after spaces and hyphens, never inside a word ("Hellschen-Heringsand-Unterschaar").
+     */
+    private void fitCityName(TextView view, String name, int widthPx) {
+        String[] tokens = name.trim().split("(?<=[ \\-])");
+        android.text.TextPaint paint = new android.text.TextPaint(view.getPaint());
+        List<String> lines = null;
+        int size = 40;
+        for (; size >= 24 && lines == null; size--) lines = wrapCity(tokens, paint, size, widthPx, 1);
+        if (lines == null) for (size = 28; size >= 14 && lines == null; size--)
+            lines = wrapCity(tokens, paint, size, widthPx, 2);
+        if (lines == null) {
+            view.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(14));
+            view.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            view.setText(name);
+            return;
+        }
+        view.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(size + 1)); // loop stepped once past the fit
+        view.setText(android.text.TextUtils.join("\n", lines));
+    }
+
+    /** Greedy wrap at the given size; null when a word is too wide or more than maxLines are needed. */
+    private List<String> wrapCity(String[] tokens, android.text.TextPaint paint, int size, int widthPx, int maxLines) {
+        paint.setTextSize(px(size));
+        List<String> lines = new ArrayList<>();
+        String line = "";
+        for (String token : tokens) {
+            if (paint.measureText(token.trim()) > widthPx) return null;
+            String candidate = line + token;
+            if (line.isEmpty() || paint.measureText(candidate.trim()) <= widthPx) line = candidate;
+            else { lines.add(line.trim()); line = token; }
+        }
+        if (!line.isEmpty()) lines.add(line.trim());
+        return lines.size() <= maxLines ? lines : null;
     }
 
     private void renderWeatherCard(int x) {
@@ -1870,26 +1912,54 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
         place(weatherHeaderIcon, x + 28, y + 22, 42, 36);
         text(tr("Pogoda", "Weather"), 20, weatherInk, false, x + 84, y + 22, 155, 35);
         refreshStamp(forecastUpdatedAt, x + 242, y + 19, 233);
-        placeForecastIcon(currentIcon, x + 43, y + 67, 84, 72);
+        // Top row: icon, temperature and city share one vertical centre (y+104).
+        // The icon's drawn left edge lines up with the header icon (x+28).
+        android.graphics.Bitmap currentBitmap = weatherIcons.bitmap(currentIcon, px(100));
+        int iconLeftPx = px(x + 28) - MeteoconIcons.inkLeft(currentBitmap);
+        ImageView currentImage = new ImageView(this);
+        currentImage.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        currentImage.setImageBitmap(currentBitmap);
+        place(currentImage, x + 28, y + 54, 100, 100);
+        setLeftPx(currentImage, iconLeftPx, px(100));
         JSONObject now = currentWeather();
-        TextView current = text("", 81, weatherInk, true, x + 132, y + 59, 170, 88);
-        current.setText(now == null || !now.has("temperature") ? "—"
-                : temperatureLabel(now.optDouble("temperature", 0)));
-        current.setGravity(Gravity.CENTER);
-        TextView city = text(cityName, cityName.length() > 9 ? 22 : 32, weatherInk, true, x + 310, y + 85, 170, 52);
-        city.setGravity(Gravity.CENTER);
-        city.setSingleLine(true);
-        city.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        // Without font padding a centred text's glyphs sit on the box's centre line (y+104),
+        // halfway between the header and the hourly row; with it the big digits sank too low.
+        // Equal visible gaps icon -> temperature -> city, measured on the drawn artwork and glyphs
+        // (a moon is narrower than a cloud, "1" has more empty space on its left than "2").
+        final int gapPx = px(18);
+        int iconInkRight = iconLeftPx + MeteoconIcons.inkRight(currentBitmap);
+        CharSequence tempLabel = now == null || !now.has("temperature") ? "—"
+                : temperatureLabel(now.optDouble("temperature", 0));
+        TextView current = text("", 76, weatherInk, true, x + 150, y + 54, 170, 100);
+        current.setIncludeFontPadding(false);
+        current.setText(tempLabel);
+        current.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        android.graphics.Rect ink = new android.graphics.Rect();
+        String firstGlyph = tempLabel.length() == 0 ? "0" : tempLabel.subSequence(0, 1).toString();
+        current.getPaint().getTextBounds(firstGlyph, 0, firstGlyph.length(), ink);
+        int tempLeftPx = iconInkRight + gapPx - ink.left;
+        int tempWidthPx = Math.round(android.text.Layout.getDesiredWidth(tempLabel, current.getPaint()));
+        setLeftPx(current, tempLeftPx, tempWidthPx + px(4));
+        int cityLeftPx = Math.min(tempLeftPx + tempWidthPx + gapPx, px(x + 340));
+        int cityWidthPx = px(x + 480) - cityLeftPx;
+        TextView city = text("", 28, weatherInk, true, x + 340, y + 59, 140, 90);
+        city.setIncludeFontPadding(false);
+        city.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        city.setSingleLine(false);
+        city.setMaxLines(2);
+        setLeftPx(city, cityLeftPx, cityWidthPx);
+        fitCityName(city, cityName, cityWidthPx);
         List<JSONObject> hours = hourlySamples(6);
         SimpleDateFormat hourFormat = new SimpleDateFormat("HH:mm", displayLocale());
         hourFormat.setTimeZone(forecastZone());
         for (int i = 0; i < hours.size(); i++) {
             JSONObject item = hours.get(i);
             int hourX = x + 16 + i * 79;
-            text(hourFormat.format(new Date(item.optLong("time"))), 15, weatherInk, true,
-                    hourX, y + 155, 75, 23).setGravity(Gravity.CENTER);
-            placeForecastIcon(item.optString("icon", ""), hourX + 9, y + 178, 58, 49);
-            TextView temperature = text("", 18, weatherInk, true, hourX, y + 226, 75, 27);
+            // Larger hourly icons and temperatures use the card's lower space.
+            text(hourFormat.format(new Date(item.optLong("time"))), 16, weatherInk, true,
+                    hourX, y + 150, 75, 23).setGravity(Gravity.CENTER);
+            placeForecastIcon(item.optString("icon", ""), hourX + 4, y + 172, 67, 62);
+            TextView temperature = text("", 23, weatherInk, true, hourX, y + 236, 75, 34);
             temperature.setText(temperatureLabel(item.optDouble("temperature")));
             temperature.setGravity(Gravity.CENTER);
         }
@@ -1961,8 +2031,8 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
         addWeatherMetrics(content);
         detailLine(content, tr("Słońce i Księżyc", "Sun and Moon"), 24, true, detailText);
         addAstronomyCards(content);
-        detailLine(content, tr("Źródłem pochodzenia danych jest Instytut Meteorologii i Gospodarki Wodnej – Państwowy Instytut Badawczy. Dane IMGW-PIB zostały przetworzone.",
-                "Data source: IMGW-PIB. The data have been processed."), 14, false, detailMuted);
+        detailLine(content, tr("Dane pogodowe: Open-Meteo.com (CC BY 4.0). Ikony: Meteocons (MIT).",
+                "Weather data: Open-Meteo.com (CC BY 4.0). Icons: Meteocons (MIT)."), 14, false, detailMuted);
         TextView close = new TextView(this);
         close.setText(tr("Zamknij", "Close"));
         close.setTextColor(detailText);
@@ -2147,29 +2217,16 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
         }
     }
 
-    private static String imgwFallbackCondition(String code) {
-        String light = code.endsWith("n") ? "n" : "d";
-        if (code.contains("z80") || code.contains("z60")) return light + "61";
-        if (code.startsWith("n0")) return light + "0";
-        if (code.startsWith("n1") || code.startsWith("n2")) return light + "2";
-        return light + "3";
-    }
-
     private View detailWeatherIcon(String code) {
-        FrameLayout frame = new FrameLayout(this);
-        View fallback = new WeatherIcon(imgwFallbackCondition(code));
-        frame.addView(fallback, new FrameLayout.LayoutParams(-1, -1));
         ImageView image = new ImageView(this);
         image.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        image.setVisibility(View.INVISIBLE);
-        frame.addView(image, new FrameLayout.LayoutParams(-1, -1));
-        weatherIcons.bind(code, image, fallback);
-        return frame;
+        image.setImageBitmap(weatherIcons.bitmap(code, px(56)));
+        return image;
     }
 
     private void addWeatherMetrics(LinearLayout content) {
         String[] labels = {tr("Wiatr", "Wind"), tr("Wilgotność", "Humidity"),
-                tr("Ciśnienie", "Pressure"), tr("Opad (10 min)", "Precipitation (10 min)")};
+                tr("Ciśnienie", "Pressure"), tr("Opad", "Precipitation")};
         String[] values = {observed("wind", " m/s"),
                 observed("humidity", "%"), observed("pressure", " hPa"),
                 observed("precipitation", " mm")};
@@ -2205,8 +2262,8 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
         JSONObject sun = forecast == null ? null : forecast.optJSONObject("sun");
         TimeZone weatherZone = TimeZone.getTimeZone(
                 forecast == null ? "Europe/Warsaw" : forecast.optString("timezone", "Europe/Warsaw"));
-        Date sunrise = sun == null ? null : ImgwForecastClient.parseTime(sun.optString("Sunrise"));
-        Date sunset = sun == null ? null : ImgwForecastClient.parseTime(sun.optString("Sunset"));
+        Date sunrise = sun == null ? null : PublicForecastClient.parseTime(sun.optString("Sunrise"), forecastZone());
+        Date sunset = sun == null ? null : PublicForecastClient.parseTime(sun.optString("Sunset"), forecastZone());
         SimpleDateFormat clockFormat = new SimpleDateFormat("HH:mm", PL);
         clockFormat.setTimeZone(weatherZone);
         String rise = sunrise == null ? "—" : clockFormat.format(sunrise);
@@ -2267,7 +2324,7 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
         card.addView(label, new LinearLayout.LayoutParams(-1, px(38)));
     }
 
-    // Same eight-phase calendar approximation used by the IMGW website.
+    // Moon phase is computed locally (eight-phase calendar approximation), not downloaded.
     private int moonPhaseIndex() {
         Calendar date = Calendar.getInstance(TimeZone.getTimeZone("Europe/Warsaw"));
         int year = date.get(Calendar.YEAR), month = date.get(Calendar.MONTH) + 1;
@@ -4015,45 +4072,6 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
                 canvas.drawLine(24, 34, 40, 34, paint);
             }
             canvas.restore();
-        }
-    }
-
-    private final class WeatherIcon extends View {
-        private final String condition;
-        private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        WeatherIcon(String condition) { super(DashboardActivity.this); this.condition = condition; }
-        @Override protected void onDraw(Canvas c) {
-            super.onDraw(c);
-            if (weatherTypeface == null) weatherTypeface = Typeface.createFromAsset(getAssets(), "weathericons-regular-webfont.ttf");
-            boolean day = !condition.startsWith("n");
-            int code;
-            try { code = Integer.parseInt(condition.substring(1)); }
-            catch (Exception ignored) { code = 3; }
-            int glyph;
-            if (code == 0) { glyph = day ? 0xf00d : 0xf02e; }
-            else if (code == 1) { glyph = day ? 0xf00c : 0xf081; }
-            else if (code == 2) { glyph = day ? 0xf002 : 0xf086; }
-            else if (code == 3) { glyph = 0xf013; }
-            else if (code == 45 || code == 48) { glyph = day ? 0xf003 : 0xf04a; }
-            else if (code >= 51 && code <= 55) { glyph = day ? 0xf00b : 0xf02b; }
-            else if (code == 56 || code == 57 || code == 66 || code == 67) {
-                glyph = day ? 0xf006 : 0xf026;
-            }
-            else if (code >= 61 && code <= 65) { glyph = day ? 0xf008 : 0xf028; }
-            else if (code >= 71 && code <= 77 || code == 85 || code == 86) {
-                glyph = day ? 0xf00a : 0xf02a;
-            }
-            else if (code >= 80 && code <= 82) { glyph = day ? 0xf009 : 0xf029; }
-            else if (code == 96 || code == 99) { glyph = day ? 0xf004 : 0xf024; }
-            else if (code >= 95) { glyph = day ? 0xf010 : 0xf02d; }
-            else { glyph = 0xf013; }
-            p.reset(); p.setAntiAlias(true); p.setTypeface(weatherTypeface);
-            p.setStyle(Paint.Style.FILL); p.setColor(ink);
-            p.setTextSize(Math.min(getWidth() * 0.86f, getHeight() * 0.9f));
-            String symbol = new String(Character.toChars(glyph));
-            Paint.FontMetrics fm = p.getFontMetrics();
-            float baseline = (getHeight() - fm.ascent - fm.descent) / 2f;
-            c.drawText(symbol, (getWidth() - p.measureText(symbol)) / 2f, baseline, p);
         }
     }
 
