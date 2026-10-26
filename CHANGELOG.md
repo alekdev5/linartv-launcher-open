@@ -5,6 +5,8 @@ Every release gets an entry here in Polish and English. Newest first.
 
 ## Niewydane / Unreleased
 
+- Data meczu w dwóch liniach: „Sobota, 7 listopada”, a pod nią „za 12 dni”. W dniu meczu zamiast daty świeci zielony znaczek DZISIAJ (jak LIVE).
+- The match date has two lines: "Saturday, 7 November", then "in 12 days". On match day a green TODAY badge (like LIVE) replaces the date.
 - Nagłówek karty meczu ma zawsze dwie linie: liga, a pod nią kolejka lub etap — długie nazwy (np. IV liga warmińsko-mazurska) nie ucinają już numeru kolejki.
 - The match card header always has two lines: the competition, then the round or stage — long names (e.g. IV liga warmińsko-mazurska) no longer cut off the round.
 

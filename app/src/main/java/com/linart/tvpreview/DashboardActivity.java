@@ -1770,9 +1770,23 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
                     x + 330, y + 242, 110, 30);
             liveBadge.setGravity(Gravity.CENTER);
             liveBadge.setBackground(shape(0xFFD8283F, 0xFFFF9AA6, 15));
+        } else if (daysUntil(match) <= 0) {
+            // Match day: a green badge in the LIVE style instead of the date.
+            View todayAura = new View(this);
+            todayAura.setBackground(new AppGlowDrawable(15, false, 0x9022B35E, 0xA562D98C));
+            todayAura.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+            place(todayAura, x + 306, y + 220, 158, 74);
+            TextView todayBadge = text(tr("DZISIAJ", "TODAY"), 20, 0xFFFFFFFF, true,
+                    x + 330, y + 242, 110, 30);
+            todayBadge.setGravity(Gravity.CENTER);
+            todayBadge.setBackground(shape(0xFF1F9D52, 0xFF8EE6AE, 15));
         } else {
-            text(matchDateLabel(match), 18, color, false,
-                    x + 260, y + 231, 250, 27).setGravity(Gravity.CENTER); // centred under the kick-off time
+            // Two lines under the kick-off time: "Sobota, 7 listopada" / "za 12 dni".
+            TextView date = text(matchDateLabel(match), 17, color, false, x + 260, y + 229, 250, 48);
+            date.setSingleLine(false);
+            date.setMaxLines(2);
+            date.setIncludeFontPadding(false);
+            date.setGravity(Gravity.CENTER);
         }
         feed.tileButton = null;
         if (upcoming.size() > 1) {
@@ -1799,17 +1813,22 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
         return shortened;
     }
 
+    /** "Sobota, 7 listopada\nza 12 dni" (English: "Saturday, 7 November\nin 12 days"). */
     private String matchDateLabel(IcsMatchParser.Match match) {
-        String day = new SimpleDateFormat("EEE d.MM", displayLocale()).format(new Date(match.startsAt));
+        String day = new SimpleDateFormat("EEEE, d MMMM", displayLocale()).format(new Date(match.startsAt));
         day = Character.toUpperCase(day.charAt(0)) + day.substring(1);
+        int days = daysUntil(match);
+        return day + "\n" + (days == 1 ? tr("jutro", "tomorrow")
+                : tr("za ", "in ") + days + tr(" dni", " days"));
+    }
+
+    /** Calendar days from today to the match (0 = today). */
+    private int daysUntil(IcsMatchParser.Match match) {
         Calendar now = Calendar.getInstance();
         Calendar then = Calendar.getInstance(); then.setTimeInMillis(match.startsAt);
         now.set(Calendar.HOUR_OF_DAY, 12); now.set(Calendar.MINUTE, 0); now.set(Calendar.SECOND, 0);
         then.set(Calendar.HOUR_OF_DAY, 12); then.set(Calendar.MINUTE, 0); then.set(Calendar.SECOND, 0);
-        int days = (int) Math.round((then.getTimeInMillis() - now.getTimeInMillis()) / 86_400_000.0);
-        return day + (days <= 0 ? tr(" · dziś", " · today") : days == 1
-                ? tr(" · jutro", " · tomorrow") : tr(" · za ", " · in ") + days
-                + tr(" dni", " days"));
+        return (int) Math.round((then.getTimeInMillis() - now.getTimeInMillis()) / 86_400_000.0);
     }
 
     private void crestBadge(String club, String league, int teamId, int x, int y) {
