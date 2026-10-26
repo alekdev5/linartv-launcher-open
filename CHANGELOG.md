@@ -3,7 +3,7 @@
 Każde wydanie ma tu wpis po polsku i po angielsku. Najnowsze na górze.
 Every release gets an entry here in Polish and English. Newest first.
 
-## 1.0.1 — niewydane / unreleased
+## 1.0.1 — 2026-10-26
 
 **Polski**
 
@@ -17,7 +17,7 @@ Nowe
 
 Ulepszone
 - Większe ikony i temperatury na karcie pogody. Długie nazwy miast mieszczą się w jednej lub dwóch liniach, bez ucinania.
-- Plik aplikacji jest o połowę mniejszy (ok. 6 MB), bo herby nie są już w nim zapisane.
+- Plik aplikacji jest dużo mniejszy (0,7 MB zamiast 6,2 MB), bo herby nie są już w nim zapisane.
 
 Do wiadomości
 - Po aktualizacji telewizor może zapytać, która aplikacja ma być ekranem głównym. Wybierz LinarTV i „Zawsze”.
@@ -34,7 +34,7 @@ New
 
 Improved
 - Larger icons and temperatures on the weather card. Long city names fit on one or two lines, never cut off.
-- The app file is half the size (about 6 MB) because crests are no longer stored in it.
+- The app file is much smaller (0.7 MB instead of 6.2 MB) because crests are no longer stored in it.
 
 Good to know
 - After the update the TV may ask which app should be the home screen. Choose LinarTV and "Always".
