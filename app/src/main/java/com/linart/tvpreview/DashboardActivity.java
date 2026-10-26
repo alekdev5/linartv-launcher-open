@@ -1722,10 +1722,23 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
         String stage = match != null && !match.stage.isEmpty() ? " - " + match.stage
                 : match != null && match.round > 0 ? tr(" - Kolejka ", " - Round ") + match.round : "";
         if (!stage.isEmpty()) {
-            TextView leagueLabel = text(competition + stage, 18, color, false,
-                    x + 84, y + 22, 240, 35);
-            leagueLabel.setAutoSizeTextTypeUniformWithConfiguration(
-                    px(15), px(18), 1, TypedValue.COMPLEX_UNIT_PX);
+            // Long names ("IV liga warmińsko-mazurska - Kolejka 15") shrink and may use two
+            // lines, so the round is never cut off. Auto-size needs a multi-line TextView.
+            TextView leagueLabel = text("", 18, color, false, x + 84, y + 16, 240, 46);
+            leagueLabel.setSingleLine(false);
+            leagueLabel.setMaxLines(2);
+            leagueLabel.setLineSpacing(0, 0.9f);
+            android.text.TextPaint labelPaint = new android.text.TextPaint(leagueLabel.getPaint());
+            // Always two lines: competition, then round/stage; the font shrinks to fit the name.
+            String round = stage.substring(3); // without the " - " joiner
+            String label = competition + "\n" + round;
+            int labelSize = 18;
+            labelPaint.setTextSize(px(labelSize));
+            while (labelSize > 13 && labelPaint.measureText(competition) > px(240))
+                labelPaint.setTextSize(px(--labelSize));
+            leagueLabel.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(labelSize));
+            leagueLabel.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            leagueLabel.setText(label);
         } else {
             text(competition, 20, color, false, x + (match == null ? 155 : 84), y + 22,
                     match == null ? 169 : 240, 35);

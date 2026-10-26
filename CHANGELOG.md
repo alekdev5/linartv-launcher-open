@@ -3,6 +3,11 @@
 Każde wydanie ma tu wpis po polsku i po angielsku. Najnowsze na górze.
 Every release gets an entry here in Polish and English. Newest first.
 
+## Niewydane / Unreleased
+
+- Nagłówek karty meczu ma zawsze dwie linie: liga, a pod nią kolejka lub etap — długie nazwy (np. IV liga warmińsko-mazurska) nie ucinają już numeru kolejki.
+- The match card header always has two lines: the competition, then the round or stage — long names (e.g. IV liga warmińsko-mazurska) no longer cut off the round.
+
 ## 1.0.1 — 2026-10-26
 
 **Polski**
