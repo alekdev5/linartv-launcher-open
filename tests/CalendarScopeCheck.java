@@ -9,9 +9,17 @@ public final class CalendarScopeCheck {
                 throw new AssertionError("Missing league: " + league);
             checked++;
         }
+        String[] fourth = {"4-liga-swietokrzyska", "4-liga-kujawsko-pomorska", "4-liga-malopolska"};
+        for (String league : fourth) {
+            if (!CalendarScope.accepts("https://kalendarzeligowe.pl/" + league + "/test-team-123/calendar.ics"))
+                throw new AssertionError("Missing IV liga group: " + league);
+            checked++;
+        }
         String[] rejected = {
                 "https://ics.fixtur.es/v2/arsenal.ics",
-                "https://kalendarzeligowe.pl/4-liga-swietokrzyska/team-1/calendar.ics",
+                "https://kalendarzeligowe.pl/4-liga/team-1/calendar.ics",
+                "https://kalendarzeligowe.pl/4-liga-/team-1/calendar.ics",
+                "https://kalendarzeligowe.pl/4-liga-a-b-c/team-1/calendar.ics",
                 "https://kalendarzeligowe.pl/klasa-okregowa-swietokrzyska/team-1/calendar.ics",
                 "https://kalendarzeligowe.pl/reprezentacja/team-1/calendar.ics",
                 "https://kalendarzeligowe.pl.evil.example/ekstraklasa/team-1/calendar.ics",

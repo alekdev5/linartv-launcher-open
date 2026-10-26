@@ -2,14 +2,15 @@
 
 ## Polski
 
-Aktualny zakres Open: wyłącznie kalendarzeligowe.pl — Ekstraklasa, I liga, II liga i cztery grupy III ligi. Pogoda z Open-Meteo dla dowolnego miasta, współrzędne miast z geokodowania Open-Meteo. Obsługa fixtur.es została usunięta z kodu do czasu otrzymania zgody operatora; notatki o niej poniżej dotyczą przyszłych funkcji.
+Aktualny zakres Open: wyłącznie kalendarzeligowe.pl — Ekstraklasa, I liga, II liga, cztery grupy III ligi i 16 grup IV ligi. Pogoda z Open-Meteo dla dowolnego miasta, współrzędne miast z geokodowania Open-Meteo. Obsługa fixtur.es została usunięta z kodu do czasu otrzymania zgody operatora; notatki o niej poniżej dotyczą przyszłych funkcji.
 
 ### 1.0.0 — pierwsze wydanie
 - [x] Wybór jednego lub dwóch klubów z katalogu kalendarzeligowe.pl (za zgodą właściciela serwisu).
 - [x] Prognoza i aktualne warunki z Open-Meteo dla miast na całym świecie, ikony Meteocons (1.0.1; wcześniej IMGW tylko dla Polski).
 - [x] Ekran główny: filtr HOME, ikona na zwykłym Androidzie, otwieranie po starcie i wybudzeniu TV (1.0.1).
 - [x] Galeria tapet, wysyłanie zdjęć z telefonu (kod z limitem prób), wygaszacz.
-- [x] Herby 77 klubów w aplikacji (Ekstraklasa, I, II liga, III liga gr. IV oraz wybrane z gr. I i II); pozostałe pobierane z kalendarzeligowe.pl.
+- [x] Herby wszystkich klubów pobierane z kalendarzeligowe.pl z kontrolą wersji; bez herbów w APK (1.0.1).
+- [x] IV liga — 16 grup wojewódzkich (1.0.1).
 - [x] Dock: wybór aplikacji, zamiana, przesuwanie pilotem i usuwanie (przytrzymanie OK na kafelku).
 - [x] Podpisane APK i instalacja przez Downloader (wydanie 1.0.0, kod `1241090`).
 - [ ] Test na kilku urządzeniach Android TV / Google TV.
@@ -42,14 +43,15 @@ Pomysł: **Polska → kalendarzeligowe.pl; świat → kalendarze ICS fixtur.es**
 
 ## English
 
-Current Open scope: kalendarzeligowe.pl only — Ekstraklasa, I liga, II liga and the four III liga groups. Weather from Open-Meteo for any city, city coordinates from Open-Meteo geocoding. fixtur.es support was removed from the code until the operator agrees; the notes about it below describe future features.
+Current Open scope: kalendarzeligowe.pl only — Ekstraklasa, I liga, II liga, the four III liga groups and the 16 IV liga groups. Weather from Open-Meteo for any city, city coordinates from Open-Meteo geocoding. fixtur.es support was removed from the code until the operator agrees; the notes about it below describe future features.
 
 ### 1.0.0 — first release
 - [x] One or two clubs from the kalendarzeligowe.pl catalogue (with the site owner's permission).
 - [x] Open-Meteo forecast and current conditions for cities worldwide, Meteocons icons (1.0.1; previously IMGW, Poland only).
 - [x] Home screen: HOME filter, icon on plain Android, opens after TV start-up and wake (1.0.1).
 - [x] Wallpaper gallery, phone photo upload (code with attempt limit), screensaver.
-- [x] Crests of 77 clubs bundled (Ekstraklasa, I and II liga, III liga group IV and selected group I/II clubs); others fetched from kalendarzeligowe.pl.
+- [x] All crests fetched from kalendarzeligowe.pl with version checks; no crests bundled in the APK (1.0.1).
+- [x] IV liga — all 16 regional groups (1.0.1).
 - [x] Dock: choose apps, replace, move with the remote and remove (hold OK on a tile).
 - [x] Signed APK and Downloader installation (release 1.0.0, code `1241090`).
 - [ ] Test on several Android TV / Google TV devices.

@@ -45,7 +45,7 @@ Work step by step and tell the user what each step does. Ask before every step t
 - **Versioning:** every published build bumps `versionCode` by 1 and sets a semantic `versionName` in `app/build.gradle`; tag releases `vX.Y.Z`. See [docs/RELEASING.md](docs/RELEASING.md).
 - **Documentation is bilingual** (Polish + English). Update both languages.
 - **Data sources:** only kalendarzeligowe.pl (used with the owner's permission) and Open-Meteo forecast + geocoding (CC BY 4.0, attribution "Open-Meteo.com" shown in the weather details). Weather icons are the bundled Meteocons (MIT, `assets/meteocons`). Do not add new sources without the maintainer's consent; never bypass reCAPTCHA or ignore `robots.txt`.
-- **Club crests** are third-party marks, not MIT. Add them only from the maintainer's `club-crests` packs via `scripts/import-club-crests.ps1`, then `python scripts/shrink-crests.py`. See [docs/CRESTS.md](docs/CRESTS.md).
+- **Club crests** are third-party marks, not MIT. The app loads them only from kalendarzeligowe.pl (`/api/teams/{id}/logo`); do not add crest files to the repository. See [docs/CRESTS.md](docs/CRESTS.md).
 - **No secrets:** never commit keystores, passwords, IP addresses of the user's network or personal photos. Run `python scripts/audit_public.py` before every push.
 - Keep the remote-control (D-pad) navigation working: every new view must be focusable and reachable with arrows; Back closes popups first.
 
@@ -76,6 +76,6 @@ Pracuj krok po kroku i mów użytkownikowi, co robi każdy krok. Pytaj przed ka�
 - **Wersjonowanie:** każde publikowane wydanie zwiększa `versionCode` o 1 i ustawia `versionName` (semver) w `app/build.gradle`; tag `vX.Y.Z`. Zob. [docs/RELEASING.md](docs/RELEASING.md).
 - **Dokumentacja jest dwujęzyczna** (polski + angielski) — aktualizuj obie wersje.
 - **Źródła danych:** tylko kalendarzeligowe.pl (za zgodą właściciela) oraz prognoza i geokodowanie Open-Meteo (CC BY 4.0, podpis „Open-Meteo.com” w szczegółach pogody). Ikony pogody to wbudowane Meteocons (MIT, `assets/meteocons`). Bez zgody opiekuna nie dodawaj nowych źródeł; nigdy nie obchodź reCAPTCHA ani `robots.txt`.
-- **Herby** to znaki klubów, nie MIT. Dodawaj je tylko z paczek `club-crests` opiekuna przez `scripts/import-club-crests.ps1`, potem `python scripts/shrink-crests.py`. Zob. [docs/CRESTS.md](docs/CRESTS.md).
+- **Herby** to znaki klubów, nie MIT. Aplikacja pobiera je wyłącznie z kalendarzeligowe.pl (`/api/teams/{id}/logo`); nie dodawaj plików herbów do repozytorium. Zob. [docs/CRESTS.md](docs/CRESTS.md).
 - **Bez sekretów:** nie commituj kluczy, haseł, adresów sieci użytkownika ani zdjęć. Przed każdym pushem uruchom `python scripts/audit_public.py`.
 - Zachowaj sterowanie pilotem: każdy nowy element musi mieć fokus i być osiągalny strzałkami; Wstecz najpierw zamyka okna.

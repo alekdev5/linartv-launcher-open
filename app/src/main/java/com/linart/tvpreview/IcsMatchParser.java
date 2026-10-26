@@ -22,6 +22,8 @@ final class IcsMatchParser {
         final int round;
         final String competition, stage;
         final int homeTeamId, awayTeamId;
+        /** kalendarzeligowe.pl crest versions (crestVer); 0 when unknown. */
+        final long homeCrestVer, awayCrestVer;
         Match(String home, String away, long startsAt, boolean hasTime, int round) {
             this(home, away, startsAt, hasTime, round, "", "");
         }
@@ -31,10 +33,16 @@ final class IcsMatchParser {
         }
         Match(String home, String away, long startsAt, boolean hasTime, int round,
               String competition, String stage, int homeTeamId, int awayTeamId) {
+            this(home, away, startsAt, hasTime, round, competition, stage, homeTeamId, awayTeamId, 0, 0);
+        }
+        Match(String home, String away, long startsAt, boolean hasTime, int round,
+              String competition, String stage, int homeTeamId, int awayTeamId,
+              long homeCrestVer, long awayCrestVer) {
             this.home = home; this.away = away; this.startsAt = startsAt; this.hasTime = hasTime;
             this.round = round;
             this.competition = competition; this.stage = stage;
             this.homeTeamId = homeTeamId; this.awayTeamId = awayTeamId;
+            this.homeCrestVer = homeCrestVer; this.awayCrestVer = awayCrestVer;
         }
     }
 

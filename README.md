@@ -27,7 +27,7 @@
 **LinarTV** is a clean, fast home screen for Android TV built around Polish football. It shows the clock, the weather for your city and the next matches of one or two clubs you follow — and keeps your favourite apps one click away.
 
 ### Features
-- **Your clubs' fixtures** — pick one or two teams from Ekstraklasa, I liga, II liga or any of the four III liga groups on [kalendarzeligowe.pl](https://kalendarzeligowe.pl); fixtures update daily, with club crests.
+- **Your clubs' fixtures** — pick one or two teams from Ekstraklasa, I liga, II liga, any of the four III liga groups or any of the 16 IV liga groups on [kalendarzeligowe.pl](https://kalendarzeligowe.pl); fixtures update daily, with club crests.
 - **Weather for any city in the world** — current conditions, hourly and 7-day forecast from Open-Meteo, with Meteocons weather icons.
 - **Day and night modes**, app dock and full app drawer, quick access to TV inputs.
 - **Polish or English interface** and Celsius or Fahrenheit temperature, selectable in LinarTV settings.
@@ -57,7 +57,7 @@ JDK 17 and the Android SDK are required (`JAVA_HOME`, `ANDROID_HOME`).
 ```text
 ./gradlew :app:assembleDebug
 ```
-Signed releases: see [docs/RELEASING.md](docs/RELEASING.md).
+Signed releases: see [docs/RELEASING.md](docs/RELEASING.md). What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 
 ### Credits
 - Inspired by and started inside [Clean Your TV](https://cleanyour.tv/) by Gathin (MIT).
@@ -65,7 +65,7 @@ Signed releases: see [docs/RELEASING.md](docs/RELEASING.md).
 - Weather data: [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0); city search: Open-Meteo geocoding / GeoNames (CC BY 4.0).
 - Weather icons: [Meteocons](https://github.com/basmilius/weather-icons) by Bas Milius (MIT), bundled in the app.
 - Weather Icons font by Erik Flowers (SIL OFL 1.1) — used for the °C / °F sign.
-- Club crests belong to their clubs — see [docs/CRESTS.md](docs/CRESTS.md).
+- Club crests are loaded from kalendarzeligowe.pl and belong to their clubs — see [docs/CRESTS.md](docs/CRESTS.md).
 
 ### License
 Code: [MIT](LICENSE). Club crests and third-party logos are not covered by the code license.
@@ -77,7 +77,7 @@ Code: [MIT](LICENSE). Club crests and third-party logos are not covered by the c
 **LinarTV** to czytelny, szybki ekran główny dla Android TV z myślą o polskiej piłce. Pokazuje zegar, pogodę dla Twojego miasta i najbliższe mecze jednego lub dwóch klubów — a ulubione aplikacje są zawsze pod ręką.
 
 ### Funkcje
-- **Terminarz Twoich klubów** — wybierz jedną lub dwie drużyny z Ekstraklasy, I ligi, II ligi lub dowolnej z czterech grup III ligi na [kalendarzeligowe.pl](https://kalendarzeligowe.pl); terminarze odświeżają się codziennie, z herbami klubów.
+- **Terminarz Twoich klubów** — wybierz jedną lub dwie drużyny z Ekstraklasy, I ligi, II ligi, dowolnej z czterech grup III ligi lub dowolnej z 16 grup IV ligi na [kalendarzeligowe.pl](https://kalendarzeligowe.pl); terminarze odświeżają się codziennie, z herbami klubów.
 - **Pogoda dla dowolnego miasta na świecie** — aktualne warunki, prognoza godzinowa i 7-dniowa z Open-Meteo oraz ikony Meteocons. Miasto zmienisz w *Ustawieniach*.
 - **Tryb dzienny i nocny**, pasek aplikacji i pełna lista aplikacji, szybki dostęp do źródeł TV.
 - **Język polski lub angielski** oraz temperatura w stopniach Celsjusza lub Fahrenheita, wybierane w ustawieniach LinarTV.
@@ -107,7 +107,7 @@ Wymagane: JDK 17 i Android SDK (`JAVA_HOME`, `ANDROID_HOME`).
 ```text
 ./gradlew :app:assembleDebug
 ```
-Podpisane wydania: [docs/RELEASING.md](docs/RELEASING.md). Plan prac: [docs/ROADMAP.md](docs/ROADMAP.md).
+Podpisane wydania: [docs/RELEASING.md](docs/RELEASING.md). Zmiany w kolejnych wersjach: [CHANGELOG.md](CHANGELOG.md). Plan prac: [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ### Podziękowania
 - Projekt powstał na bazie i z inspiracji [Clean Your TV](https://cleanyour.tv/) (Gathin, MIT).
@@ -115,7 +115,7 @@ Podpisane wydania: [docs/RELEASING.md](docs/RELEASING.md). Plan prac: [docs/ROAD
 - Dane pogodowe: [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0); wyszukiwanie miast: geokodowanie Open-Meteo / GeoNames (CC BY 4.0).
 - Ikony pogody: [Meteocons](https://github.com/basmilius/weather-icons), Bas Milius (MIT), wbudowane w aplikację.
 - Font Weather Icons: Erik Flowers (SIL OFL 1.1) — znak °C / °F.
-- Herby należą do klubów — zobacz [docs/CRESTS.md](docs/CRESTS.md).
+- Herby są pobierane z kalendarzeligowe.pl i należą do klubów — zobacz [docs/CRESTS.md](docs/CRESTS.md).
 
 ### Licencja
 Kod: [MIT](LICENSE). Herby klubów i logo innych firm nie są objęte licencją kodu.

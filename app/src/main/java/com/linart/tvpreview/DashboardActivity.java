@@ -244,8 +244,7 @@ public final class DashboardActivity extends Activity {
             refreshWeather();
             refreshCalendar(clubOneCalendar);
             refreshCalendar(clubTwoCalendar);
-            crests.refreshIfDue(clubOneCalendar.matches, clubOneCalendar.leagueSlug,
-                    clubTwoCalendar.matches, clubTwoCalendar.leagueSlug, false);
+            crests.refreshIfDue(clubOneCalendar.matches, clubTwoCalendar.matches, false);
             handler.postDelayed(this, 60_000);
         }
     };
@@ -422,8 +421,10 @@ public final class DashboardActivity extends Activity {
                     feed.matches.add(new IcsMatchParser.Match(row.getString("home"), row.getString("away"),
                             row.getLong("startsAt"), row.getBoolean("hasTime"), row.optInt("round", -1),
                             row.optString("competition", ""), row.optString("stage", ""),
-                            row.optInt("homeTeamId", 0), row.optInt("awayTeamId", 0)));
+                            row.optInt("homeTeamId", 0), row.optInt("awayTeamId", 0),
+                            row.optLong("homeCrestVer", 0), row.optLong("awayCrestVer", 0)));
                 }
+                if (crests != null) crests.noteVersions(feed.matches);
                 return;
             } catch (Exception e) { feed.matches.clear(); }
         }
@@ -459,6 +460,7 @@ public final class DashboardActivity extends Activity {
                         JSONObject row = new JSONObject();
                         row.put("home", match.home).put("away", match.away)
                                 .put("homeTeamId", match.homeTeamId).put("awayTeamId", match.awayTeamId)
+                                .put("homeCrestVer", match.homeCrestVer).put("awayCrestVer", match.awayCrestVer)
                                 .put("startsAt", match.startsAt).put("hasTime", match.hasTime)
                                 .put("round", match.round).put("competition", match.competition)
                                 .put("stage", match.stage);
@@ -468,6 +470,7 @@ public final class DashboardActivity extends Activity {
                         if (feed != clubOneCalendar && feed != clubTwoCalendar) return;
                         feed.loading = false;
                         feed.matches = matches;
+                        crests.noteVersions(matches); // before the cards ask for crests
                         feed.updatedAt = System.currentTimeMillis();
                         feed.selected = 0;
                         getPreferences(MODE_PRIVATE).edit().putString(feed.key + "_calendar_matches", rows.toString())
@@ -475,8 +478,7 @@ public final class DashboardActivity extends Activity {
                                 .remove(feed.key + "_calendar_ics")
                                 .putLong(feed.key + "_calendar_updated", feed.updatedAt).apply();
                         finishCalendarSettingsRefresh(feed);
-                        crests.refreshIfDue(clubOneCalendar.matches, clubOneCalendar.leagueSlug,
-                                clubTwoCalendar.matches, clubTwoCalendar.leagueSlug, true);
+                        crests.refreshIfDue(clubOneCalendar.matches, clubTwoCalendar.matches, true);
                     });
             } catch (Exception e) {
                 android.util.Log.w("LinarTV", "Team calendar refresh failed; keeping cached matches", e);
@@ -1435,10 +1437,26 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
                 handler.post(() -> {
                     if (!setup.isShowing()) return;
                     status.setText("");
-                    String[] names = new String[leagues.size()];
-                    for (int i = 0; i < names.length; i++) names[i] = leagues.get(i).name;
-                    showChoiceDialog(tr("Wybierz ligę", "Choose a league"), names,
-                            index -> chooseClub(slot, leagues.get(index), draft, button, setup, status));
+                    // National leagues first, then one "IV liga" entry that opens the voivodeships.
+                    List<LeagueCatalogClient.League> national = new ArrayList<>(), regional = new ArrayList<>();
+                    for (LeagueCatalogClient.League league : leagues)
+                        (league.fourthLeague() ? regional : national).add(league);
+                    String[] names = new String[national.size() + (regional.isEmpty() ? 0 : 1)];
+                    for (int i = 0; i < national.size(); i++) names[i] = national.get(i).name;
+                    if (!regional.isEmpty()) names[names.length - 1] = "IV liga";
+                    showChoiceDialog(tr("Wybierz ligę", "Choose a league"), names, index -> {
+                        if (index < national.size()) {
+                            chooseClub(slot, national.get(index), draft, button, setup, status);
+                            return;
+                        }
+                        String[] regions = new String[regional.size()];
+                        for (int i = 0; i < regions.length; i++) {
+                            String r = regional.get(i).region;
+                            regions[i] = r.substring(0, 1).toUpperCase(PL) + r.substring(1);
+                        }
+                        showChoiceDialog(tr("IV liga — województwo", "IV liga — region"), regions,
+                                region -> chooseClub(slot, regional.get(region), draft, button, setup, status));
+                    });
                 });
             } catch (Exception e) {
                 handler.post(() -> { if (setup.isShowing()) status.setText(tr("Nie udało się pobrać lig. Spróbuj ponownie.",
@@ -1725,7 +1743,7 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
                     x + 29, y + 176, 445, 50);
             return;
         }
-        String crestLeague = CrestRepository.leagueKey(feed.leagueSlug);
+        String crestLeague = feed.leagueSlug;
         crestBadge(match.home, crestLeague, match.homeTeamId, x + 14, y + 145);
         crestBadge(match.away, crestLeague, match.awayTeamId, x + 150, y + 145);
         String time = match.hasTime ? new SimpleDateFormat("HH:mm", PL).format(new Date(match.startsAt)) : "—:—";
@@ -1783,7 +1801,7 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
 
     private void crestBadge(String club, String league, int teamId, int x, int y) {
         final int size = 128;
-        Bitmap bitmap = crests.get(club, league, teamId);
+        Bitmap bitmap = crests.get(club, teamId);
         TextView fallback = text(clubInitials(club), 35,
                 night ? 0xFFF5F8FF : 0xFF183154, true, x + 8, y + 8, size - 16, size - 16);
         fallback.setGravity(Gravity.CENTER);
@@ -1813,7 +1831,7 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
     private void updateCrestViews(String club) {
         for (List<CrestSlot> slots : crestSlots.values()) for (CrestSlot slot : slots) {
             if (!club.equals(slot.name)) continue;
-            Bitmap bitmap = crests.get(slot.name, slot.league, slot.teamId);
+            Bitmap bitmap = crests.get(slot.name, slot.teamId);
             if (bitmap == null) continue;
             setCrestBitmap(slot.image, bitmap);
             slot.image.setVisibility(View.VISIBLE);

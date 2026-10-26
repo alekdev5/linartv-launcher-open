@@ -13,7 +13,7 @@ LinarTV to ekran główny (launcher) dla Android TV z myślą o kibicach polskie
 #### Pulpit
 - **Zegar i data** w wybranym języku (polski lub angielski).
 - **Pogoda** dla wybranego miasta na świecie: bieżąca temperatura i prognoza godzinowa. Kliknięcie kafelka otwiera szczegóły: 7 dni, warunki teraz (wiatr, wilgotność, ciśnienie, opad), Słońce i fazę Księżyca. Dane odświeżają się co 30 minut. Wschód i zachód Słońca pochodzą z Open-Meteo, faza Księżyca jest liczona w aplikacji.
-- **Terminarz jednego lub dwóch klubów** z Ekstraklasy, I ligi, II ligi lub dowolnej grupy III ligi. Karta pokazuje rozgrywki i kolejkę, rywala, herby, datę i godzinę (gdy jest potwierdzona) oraz czerwony **LIVE** w trakcie meczu. Kliknięcie karty przełącza między najbliższym a następnym meczem. Terminarze odświeżają się raz dziennie.
+- **Terminarz jednego lub dwóch klubów** z Ekstraklasy, I ligi, II ligi, dowolnej grupy III ligi lub IV ligi (16 grup wojewódzkich). Karta pokazuje rozgrywki i kolejkę, rywala, herby, datę i godzinę (gdy jest potwierdzona) oraz czerwony **LIVE** w trakcie meczu. Kliknięcie karty przełącza między najbliższym a następnym meczem. Terminarze odświeżają się raz dziennie.
 - **Układ:** przy dwóch klubach pogoda i dwie karty meczów stoją w jednym rzędzie. Przy jednym klubie pogoda i karta meczu są ułożone jedna nad drugą po prawej stronie.
 - **Pasek narzędzi:** Oglądaj telewizję, Źródła (wejścia HDMI i tuner TV) oraz Ustawienia.
 
@@ -31,7 +31,7 @@ LinarTV to ekran główny (launcher) dla Android TV z myślą o kibicach polskie
 | Wygaszacz | Pokaz Twoich zdjęć po wybranym czasie bezczynności (domyślnie 5 min) |
 | Wygląd launchera | Automatycznie (dzień 08:00–19:59, noc 20:00–07:59), zawsze jasny, zawsze ciemny, własne godziny |
 | Pogoda | Wybór miasta (dowolny kraj) i jednostki (°C lub °F) |
-| Kalendarze | Kreator „Twoje kluby” (liga → klub, jeden lub dwa) oraz „Odśwież teraz” |
+| Kalendarze | Kreator „Twoje kluby” (liga → klub, dla IV ligi liga → województwo → klub; jeden lub dwa) oraz „Odśwież teraz” |
 
 Pod kafelkami: wolna pamięć RAM i miejsce na dysku, skrót do ustawień Android TV, Język, O aplikacji.
 
@@ -47,7 +47,7 @@ LinarTV można ustawić jako domyślny ekran główny (ustawienie TV albo `adb s
 |---|---|---|---|
 | Lista lig i drużyn | kalendarzeligowe.pl — API (`/api/seasons`, `/api/competitions`, `/api/competitions/{id}/standings`) | przy wyborze klubu | za zgodą właściciela serwisu |
 | Terminarz klubu | kalendarzeligowe.pl — API (`/api/matches?teamId=`) | raz dziennie | w pamięci TV (SharedPreferences) |
-| Herby | 77 wbudowanych w APK (`assets/crests`); brakujące z kalendarzeligowe.pl (`/api/teams/{id}/logo`) | wbudowane: zawsze; pobrane: kontrola co 7 dni | bez herbu pokazywane są inicjały; zob. [CRESTS.md](CRESTS.md) |
+| Herby | kalendarzeligowe.pl (`/api/teams/{id}/logo`) | ponownie tylko po zmianie wersji herbu (`crestVer`) | bez herbu pokazywane są inicjały; zob. [CRESTS.md](CRESTS.md) |
 | Prognoza i warunki teraz | Open-Meteo (`api.open-meteo.com/v1/forecast`, kody pogody WMO) | co 30 minut | CC BY 4.0, podpis „Open-Meteo.com” w szczegółach pogody |
 | Ikony pogody | Meteocons (Bas Milius, MIT) — SVG wbudowane w APK (`assets/meteocons`) | zawsze | bez pobierania; działają bez sieci |
 | Wyszukiwanie miasta | Open-Meteo Geocoding (GeoNames, CC BY 4.0), cały świat | przy wyborze miasta | wysyłana jest tylko wpisana nazwa |
@@ -80,16 +80,15 @@ flowchart LR
         SNP["SpotifyNowPlaying"]
         UI["DashboardActivity<br/>pulpit, dock, ustawienia"]
         ST[("Pamięć TV<br/>SharedPreferences + pliki")]
-        AS[("APK: herby, ikony Meteocons,<br/>czcionka Weather Icons")]
+        AS[("APK: ikony Meteocons,<br/>czcionka Weather Icons")]
         AND["Android: PackageManager,<br/>TvInputManager, MediaSession"]
     end
     KL -- "ligi, drużyny, terminarz (1×/dzień)" --> LCC
-    KL -- "logo brakujących herbów (co 7 dni)" --> CR
+    KL -- "herby (po zmianie wersji)" --> CR
     OMF -- "prognoza (co 30 min)" --> PFC
     OM -- "współrzędne" --> PFC
     AS --> MI
     PH -- "zdjęcia (HTTP w LAN)" --> PUS
-    AS --> CR
     AS --> UI
     LCC --> UI
     CR --> UI
@@ -124,10 +123,10 @@ sequenceDiagram
         L-->>D: najbliższe mecze
         D->>S: zapisz terminarz
     end
-    D->>C: herb(nazwa, liga, id)
-    alt herb wbudowany w APK
-        C-->>D: obraz z assets
-    else brak w APK
+    D->>C: herb(nazwa, id)
+    alt herb w pamięci TV w aktualnej wersji
+        C-->>D: obraz z pamięci
+    else nowa wersja albo brak
         C->>KL: GET /api/teams/{id}/logo
         KL-->>C: obraz
         C->>S: zapisz w crests-by-team
@@ -146,7 +145,7 @@ sequenceDiagram
 ### 4. Zachowanie bez internetu
 - Pulpit, dock, szuflada, źródła TV, tapety i wygaszacz działają w pełni.
 - Terminarz i prognoza pokazują ostatnio zapisane dane wraz z godziną odświeżenia.
-- Herby wbudowane (77) są zawsze widoczne. Pozostałe pokazują się, jeśli wcześniej zostały pobrane, a w innym razie widać inicjały.
+- Herby pokazują się, jeśli wcześniej zostały pobrane; w innym razie widać inicjały.
 - Ikony pogody są wbudowane w aplikację, więc zawsze są widoczne.
 
 ### 5. Znane ograniczenia
@@ -165,7 +164,7 @@ LinarTV is a home screen (launcher) for Android TV built for Polish football fan
 **Home screen**
 - **Clock and date** in the selected language (Polish or English).
 - **Weather** for a chosen city anywhere in the world: current temperature and hourly forecast. Clicking the tile opens details: 7 days, current conditions (wind, humidity, pressure, precipitation), sun and moon phase. Refreshed every 30 minutes. Sunrise and sunset come from Open-Meteo; the moon phase is computed by the app.
-- **Fixtures of one or two clubs** from Ekstraklasa, I liga, II liga or any III liga group. The card shows competition and round, opponent, crests, date and kick-off time (when confirmed) and a red **LIVE** during the match. Clicking the card switches between the next and the following match. Fixtures refresh once a day.
+- **Fixtures of one or two clubs** from Ekstraklasa, I liga, II liga, any III liga group or IV liga (16 regional groups). The card shows competition and round, opponent, crests, date and kick-off time (when confirmed) and a red **LIVE** during the match. Clicking the card switches between the next and the following match. Fixtures refresh once a day.
 - **Layout:** with two clubs, weather and both match cards share one row; with one club, weather and the match card are stacked on the right.
 - **Toolbar:** Watch TV, Inputs (HDMI and TV tuner) and Settings.
 
@@ -184,7 +183,7 @@ LinarTV is a home screen (launcher) for Android TV built for Polish football fan
 | Screensaver | Slideshow of your photos after the chosen idle time (5 min by default) |
 | Launcher appearance | Automatic (day 08:00–19:59, night 20:00–07:59), always light, always dark, custom hours |
 | Weather | City (any country) and unit (°C or °F) |
-| Calendars | "Your clubs" wizard (league → club, one or two) and "Refresh now" |
+| Calendars | "Your clubs" wizard (league → club, for IV liga league → region → club; one or two) and "Refresh now" |
 
 Below the tiles: free RAM and storage, a shortcut to Android TV settings, Language, About.
 
@@ -198,7 +197,7 @@ Below the tiles: free RAM and storage, a shortcut to Android TV settings, Langua
 |---|---|---|---|
 | Leagues and teams | kalendarzeligowe.pl API (`/api/seasons`, `/api/competitions`, `/api/competitions/{id}/standings`) | when choosing a club | used with the site owner's permission |
 | Club fixtures | kalendarzeligowe.pl API (`/api/matches?teamId=`) | once a day | stored on the TV (SharedPreferences) |
-| Crests | 77 bundled in the APK (`assets/crests`); missing ones from kalendarzeligowe.pl (`/api/teams/{id}/logo`) | bundled: always; downloaded: checked every 7 days | initials when no image exists; see [CRESTS.md](CRESTS.md) |
+| Crests | kalendarzeligowe.pl (`/api/teams/{id}/logo`) | again only when the crest version (`crestVer`) changes | initials when no image exists; see [CRESTS.md](CRESTS.md) |
 | Forecast and current conditions | Open-Meteo (`api.open-meteo.com/v1/forecast`, WMO weather codes) | every 30 minutes | CC BY 4.0, attribution "Open-Meteo.com" in weather details |
 | Weather icons | Meteocons (Bas Milius, MIT) — SVG bundled in the APK (`assets/meteocons`) | always | no download; work offline |
 | City search | Open-Meteo Geocoding (GeoNames, CC BY 4.0), worldwide | when choosing a city | only the typed name is sent |
@@ -215,7 +214,7 @@ See the component and sequence diagrams [above](#3-przepływ-danych-uml) — the
 ### 4. Offline behaviour
 - Home screen, dock, drawer, TV inputs, wallpapers and screensaver work fully.
 - Fixtures and forecast show the last stored data with its refresh time.
-- The 77 bundled crests are always shown; others appear if previously downloaded, otherwise initials.
+- Crests appear if previously downloaded, otherwise initials.
 - Weather icons are bundled in the app, so they are always shown.
 
 ### 5. Known limitations

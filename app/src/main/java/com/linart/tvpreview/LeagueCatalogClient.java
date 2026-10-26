@@ -21,7 +21,8 @@ import java.util.regex.Pattern;
 
 /** Current leagues and teams from the same public catalogue used by kalendarzeligowe.pl. */
 final class LeagueCatalogClient {
-    static final int CACHE_FORMAT = 3;
+    // 4: cached matches also keep crest versions (crestVer).
+    static final int CACHE_FORMAT = 4;
     private static final String ROOT = "https://kalendarzeligowe.pl/api/";
     private static final List<String> SLUGS = CalendarScope.LEAGUES;
     private static final String[] CATEGORIES = {"EKSTRAKLASA", "FIRST_LEAGUE", "SECOND_LEAGUE",
@@ -32,9 +33,13 @@ final class LeagueCatalogClient {
     static final class League {
         final int id;
         final String name, slug, season;
-        League(int id, String name, String slug, String season) {
-            this.id = id; this.name = name; this.slug = slug; this.season = season;
+        /** Voivodeship for IV liga groups ("małopolska"), empty for national leagues. */
+        final String region;
+        League(int id, String name, String slug, String season) { this(id, name, slug, season, ""); }
+        League(int id, String name, String slug, String season, String region) {
+            this.id = id; this.name = name; this.slug = slug; this.season = season; this.region = region;
         }
+        boolean fourthLeague() { return !region.isEmpty(); }
     }
 
     static final class Team {
@@ -67,6 +72,19 @@ final class LeagueCatalogClient {
                 }
             }
         }
+        // IV liga: one group per voivodeship, site address "4-liga-<voivodeship>".
+        List<League> fourth = new ArrayList<>();
+        for (int j = 0; j < competitions.length(); j++) {
+            JSONObject item = competitions.getJSONObject(j);
+            String region = item.isNull("groupName") ? "" : item.optString("groupName", "").trim();
+            if (!"FOURTH_LEAGUE".equals(item.optString("category")) || region.isEmpty()) continue;
+            String slug = CalendarScope.FOURTH_LEAGUE_PREFIX + slug(region);
+            if (!CalendarScope.isLeague(slug)) continue;
+            fourth.add(new League(item.getInt("id"), item.getString("name"), slug, season, region));
+        }
+        java.text.Collator polish = java.text.Collator.getInstance(new Locale("pl", "PL"));
+        fourth.sort((a, b) -> polish.compare(a.region, b.region));
+        result.addAll(fourth);
         return result;
     }
 
@@ -117,9 +135,10 @@ final class LeagueCatalogClient {
                 JSONObject away = item.optJSONObject("away");
                 if (home == null || away == null
                         || (home.optInt("id") != teamId && away.optInt("id") != teamId)) continue;
-                String date = item.optString("matchDate", "");
-                if (date.isEmpty()) continue;
-                Instant kickoff = Instant.parse(date);
+                // Lower leagues list fixtures without a date yet (matchDate: null); skip those.
+                String date = item.isNull("matchDate") ? "" : item.optString("matchDate", "");
+                Instant kickoff;
+                try { kickoff = Instant.parse(date); } catch (Exception undated) { continue; }
                 boolean hasTime = !item.optBoolean("isDateTbd", false);
                 long startsAt = hasTime ? kickoff.toEpochMilli()
                         : kickoff.atZone(ZoneId.of("Europe/Warsaw")).toLocalDate()
@@ -134,7 +153,8 @@ final class LeagueCatalogClient {
                         round == null ? -1 : round.optInt("roundNumber", -1));
                 matches.add(new IcsMatchParser.Match(home.optString("name"), away.optString("name"),
                         startsAt, hasTime, metadata.round, metadata.name, metadata.stage,
-                        home.optInt("id", 0), away.optInt("id", 0)));
+                        home.optInt("id", 0), away.optInt("id", 0),
+                        home.optLong("crestVer", 0), away.optLong("crestVer", 0)));
             }
             JSONObject meta = response.optJSONObject("meta");
             if (meta == null || page >= meta.optInt("pageCount", page)) break;

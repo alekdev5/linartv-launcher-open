@@ -12,7 +12,7 @@
 4. **Zrób kopię** pliku `%USERPROFILE%\.linartv\linartv-release.jks` (np. na pendrive). Bez klucza i hasła nie wydasz aktualizacji — użytkownicy musieliby odinstalować aplikację.
 
 ### Każde wydanie
-1. W `app/build.gradle` zwiększ `versionCode` o 1 i ustaw `versionName` zgodnie z [semver](https://semver.org/lang/pl/): poprawki → `1.0.1`, nowe funkcje → `1.1.0`, zmiany niezgodne wstecz → `2.0.0`. Pierwsze wydanie: `versionCode 1`, `versionName 1.0.0`.
+1. W `app/build.gradle` zwiększ `versionCode` o 1 i ustaw `versionName` zgodnie z [semver](https://semver.org/lang/pl/): poprawki → `1.0.1`, nowe funkcje → `1.1.0`, zmiany niezgodne wstecz → `2.0.0`. Pierwsze wydanie: `versionCode 1`, `versionName 1.0.0`. Dopisz zmiany do [CHANGELOG.md](../CHANGELOG.md) (PL + EN) i użyj tego wpisu jako opisu wydania.
 2. Ustaw `JAVA_HOME` (JDK 17) i `ANDROID_HOME` (Android SDK), potem:
    ```powershell
    powershell -ExecutionPolicy Bypass -File scripts\build-release.ps1
@@ -40,7 +40,7 @@ https://github.com/domlin92/linartv-launcher-open/releases/latest/download/Linar
 4. **Back up** `%USERPROFILE%\.linartv\linartv-release.jks` (e.g. on a USB stick). Without the key and password you cannot publish updates — users would have to uninstall the app.
 
 ### Every release
-1. In `app/build.gradle`, increase `versionCode` by 1 and set `versionName` following [semver](https://semver.org/): fixes → `1.0.1`, new features → `1.1.0`, breaking changes → `2.0.0`. First release: `versionCode 1`, `versionName 1.0.0`.
+1. In `app/build.gradle`, increase `versionCode` by 1 and set `versionName` following [semver](https://semver.org/): fixes → `1.0.1`, new features → `1.1.0`, breaking changes → `2.0.0`. First release: `versionCode 1`, `versionName 1.0.0`. Add the changes to [CHANGELOG.md](../CHANGELOG.md) (PL + EN) and use that entry as the release description.
 2. Set `JAVA_HOME` (JDK 17) and `ANDROID_HOME` (Android SDK), then:
    ```powershell
    powershell -ExecutionPolicy Bypass -File scripts\build-release.ps1
