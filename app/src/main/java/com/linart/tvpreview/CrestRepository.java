@@ -104,8 +104,12 @@ final class CrestRepository {
     private void load(Entry e, int id, long version, boolean force) {
         try {
             if (closed) return;
+            // football-logos.cc only for clubs without a crest at kalendarzeligowe.pl (TEST ONLY).
+            // A crest version from the API means kalendarzeligowe.pl now has the crest: use it again.
+            if ((id <= 0 || version <= 0 && prefs.getBoolean("nocrest_" + id, false)) && loadForeignLogo(e)) return;
             if (id <= 0) id = findTeamId(e.name);
-            if (id <= 0) { finish(e, 0, null, 0, RETRY_MS, "missing"); return; }
+            // No crest for this name (e.g. foreign clubs): ask again only after 12 h.
+            if (id <= 0) { finish(e, 0, null, 0, MISSING_MS, "missing"); return; }
             File cached = cacheFile(id);
             Bitmap image = cached.isFile() ? decode(new java.io.FileInputStream(cached)) : null;
             long now = System.currentTimeMillis(), downloaded = prefs.getLong("downloaded_" + id, 0);
@@ -116,6 +120,8 @@ final class CrestRepository {
                 publish(e, id, image, cachedVersion, "disk");
             }
             if (!force && now < prefs.getLong("retry_" + id, 0)) {
+                // Waiting before asking kalendarzeligowe.pl again: meanwhile try football-logos.cc.
+                if (version <= 0 && image == null && loadForeignLogo(e)) return;
                 finish(e, id, null, cachedVersion, RETRY_MS, "cooldown"); return;
             }
             prefs.edit().putLong("retry_" + id, now + RETRY_MS).apply();
@@ -134,10 +140,39 @@ final class CrestRepository {
             // Most IV liga teams have no crest yet (404): ask again after 12 h, not every 5 min.
             boolean noCrest = String.valueOf(unavailable.getMessage()).equals("HTTP 404");
             long delay = noCrest ? MISSING_MS : RETRY_MS;
-            if (noCrest && id > 0) prefs.edit().putLong("retry_" + id, System.currentTimeMillis() + delay).apply();
+            if (noCrest && id > 0) prefs.edit().putLong("retry_" + id, System.currentTimeMillis() + delay)
+                    .putBoolean("nocrest_" + id, true).apply();
+            try { if (noCrest && loadForeignLogo(e)) return; } catch (Exception ignored) { }
             finish(e, id, null, e.version, delay, noCrest ? "no-crest" : "unavailable");
         }
     }
+    /**
+     * TEST ONLY: foreign clubs' crests from football-logos.cc (see OpenFootballClient.logoUrl).
+     * The address contains a content hash, so a cached file never needs refreshing.
+     */
+    private boolean loadForeignLogo(Entry e) throws Exception {
+        String key = "logo_url_" + CrestNameIndex.normalize(e.name);
+        String url = prefs.getString(key, null);
+        if (url == null) {
+            OpenFootballClient.loadLogoPages();
+            url = OpenFootballClient.logoUrl(e.name);
+        }
+        if (url == null) return false;
+        File dir = new File(context.getFilesDir(), "crests-foreign");
+        dir.mkdirs();
+        File cached = new File(dir, Integer.toHexString(url.hashCode()) + ".png");
+        Bitmap image = cached.isFile() ? decode(new java.io.FileInputStream(cached)) : null;
+        if (image == null) {
+            byte[] bytes = fetch(url, 2_000_000);
+            image = decode(new ByteArrayInputStream(bytes));
+            if (image == null) return false;
+            Files.write(cached.toPath(), bytes);
+            prefs.edit().putString(key, url).apply();
+        }
+        finish(e, e.id, image, e.version, Long.MAX_VALUE / 4, "football-logos");
+        return true;
+    }
+
     private void publish(Entry e, int id, Bitmap image, long version, String source) {
         main.post(() -> {
             if (closed) { if (image != null && image != e.bitmap) image.recycle(); return; }

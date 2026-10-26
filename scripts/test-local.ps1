@@ -26,3 +26,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Calendar scope checks failed.' }
 if ($LASTEXITCODE -ne 0) { throw 'Compilation of crest checks failed.' }
 & $runtime -cp $outputPath com.linart.tvpreview.CrestNameIndexCheck
 if ($LASTEXITCODE -ne 0) { throw 'Crest checks failed.' }
+& $compiler -encoding UTF-8 -d $outputPath (Join-Path $projectRoot 'app\src\main\java\com\linart\tvpreview\CrestNameMatcher.java') (Join-Path $projectRoot 'tests\CrestNameMatcherCheck.java')
+if ($LASTEXITCODE -ne 0) { throw 'Compilation of crest matcher checks failed.' }
+& $runtime -cp $outputPath com.linart.tvpreview.CrestNameMatcherCheck
+if ($LASTEXITCODE -ne 0) { throw 'Crest matcher checks failed.' }

@@ -18,7 +18,31 @@ final class CalendarScope {
                 || slug.startsWith(FOURTH_LEAGUE_PREFIX) && slug.matches("4-liga-[a-z]+(-[a-z]+)?");
     }
 
+    /** Foreign clubs: "openfootball:<league file>/<club name>", e.g. "openfootball:en.1/Arsenal FC". */
+    static final String FOREIGN_PREFIX = "openfootball:";
+    static final List<String> FOREIGN_LEAGUES = Collections.unmodifiableList(Arrays.asList(
+            "en.1", "es.1", "de.1", "it.1", "fr.1"));
+
+    static String foreignUrl(String league, String team) { return FOREIGN_PREFIX + league + "/" + team; }
+    static boolean isForeign(String address) { return address != null && address.startsWith(FOREIGN_PREFIX); }
+    static String foreignLeague(String address) {
+        String rest = address.substring(FOREIGN_PREFIX.length());
+        return rest.substring(0, rest.indexOf('/'));
+    }
+    static String foreignTeam(String address) {
+        String rest = address.substring(FOREIGN_PREFIX.length());
+        return rest.substring(rest.indexOf('/') + 1);
+    }
+
     static boolean accepts(String address) {
+        if (isForeign(address)) {
+            String rest = address.substring(FOREIGN_PREFIX.length());
+            int slash = rest.indexOf('/');
+            if (slash < 1) return false;
+            String team = rest.substring(slash + 1);
+            return FOREIGN_LEAGUES.contains(rest.substring(0, slash)) && !team.trim().isEmpty()
+                    && team.length() <= 80 && !team.matches(".*[\\p{Cntrl}/].*");
+        }
         try {
             URI uri = new URI(address);
             if (!"https".equals(uri.getScheme()) || !"kalendarzeligowe.pl".equals(uri.getHost())

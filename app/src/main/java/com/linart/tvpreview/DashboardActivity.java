@@ -1428,8 +1428,56 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
     }
 
 
+    /** Country first: Poland, then foreign countries alphabetically (Top 5 leagues). */
     private void chooseLeague(int slot, CalendarFeed[] draft, TextView button,
                               Dialog setup, TextView status) {
+        List<OpenFootballClient.Country> foreign = OpenFootballClient.sortedCountries(english);
+        String[] countries = new String[foreign.size() + 1];
+        countries[0] = tr("Polska", "Poland");
+        for (int i = 0; i < foreign.size(); i++)
+            countries[i + 1] = english ? foreign.get(i).nameEn : foreign.get(i).namePl;
+        showChoiceDialog(tr("Wybierz kraj", "Choose a country"), countries, index -> {
+            if (index == 0) { choosePolishLeague(slot, draft, button, setup, status); return; }
+            OpenFootballClient.Country country = foreign.get(index - 1);
+            showChoiceDialog(countries[index], new String[]{country.league},
+                    league -> chooseForeignClub(slot, country, draft, button, setup, status));
+        });
+    }
+
+    private void chooseForeignClub(int slot, OpenFootballClient.Country country, CalendarFeed[] draft,
+                                   TextView button, Dialog setup, TextView status) {
+        status.setText(tr("Pobieranie drużyn…", "Loading teams…"));
+        new Thread(() -> {
+            try {
+                List<String> teams = OpenFootballClient.teams(country.code);
+                handler.post(() -> {
+                    if (!setup.isShowing()) return;
+                    if (teams.isEmpty()) { status.setText(tr("Brak drużyn w tej lidze.",
+                            "No teams in this league.")); return; }
+                    status.setText("");
+                    showChoiceDialog(country.league, teams.toArray(new String[0]), index -> {
+                        String team = teams.get(index);
+                        String url = CalendarScope.foreignUrl(country.code, team);
+                        int other = 1 - slot;
+                        if (draft[other].configured() && draft[other].url.equals(url)) {
+                            status.setText(tr("Ten klub jest już wybrany.", "This club is already selected."));
+                            return;
+                        }
+                        draft[slot] = new CalendarFeed("club" + (slot + 1), url, team, country.league,
+                                "openfootball-" + country.code);
+                        button.setText((slot + 1) + ". " + team + " · " + country.league);
+                        button.requestFocusFromTouch();
+                    });
+                });
+            } catch (Exception e) {
+                handler.post(() -> { if (setup.isShowing()) status.setText(tr("Nie udało się pobrać drużyn. Spróbuj ponownie.",
+                        "Could not load teams. Try again.")); });
+            }
+        }, "foreign-teams").start();
+    }
+
+    private void choosePolishLeague(int slot, CalendarFeed[] draft, TextView button,
+                                    Dialog setup, TextView status) {
         status.setText(tr("Pobieranie listy lig…", "Loading leagues…"));
         new Thread(() -> {
             try {
@@ -1616,8 +1664,11 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
 
     private long matchVisibleUntil(IcsMatchParser.Match match) {
         if (match.hasTime) return match.startsAt + MATCH_VISIBLE_AFTER_KICKOFF_MS;
-        Calendar nextDay = Calendar.getInstance(TimeZone.getTimeZone("Europe/Warsaw"));
+        // Date-only match: visible until the end of that day in the TV's own time zone.
+        Calendar nextDay = Calendar.getInstance();
         nextDay.setTimeInMillis(match.startsAt);
+        nextDay.set(Calendar.HOUR_OF_DAY, 0); nextDay.set(Calendar.MINUTE, 0);
+        nextDay.set(Calendar.SECOND, 0); nextDay.set(Calendar.MILLISECOND, 0);
         nextDay.add(Calendar.DAY_OF_MONTH, 1);
         return nextDay.getTimeInMillis();
     }
@@ -1717,9 +1768,9 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
             placeIcon.setPadding(px(7), px(4), px(7), px(4));
             place(placeIcon, x + 28, y + 22, 42, 36);
         }
-        String competition = match != null && !match.competition.isEmpty() ? match.competition
+        String competition = match != null && !match.competition.isEmpty() ? competitionName(match.competition)
                 : match == null ? league : tr("Rozgrywki", "Competition");
-        String stage = match != null && !match.stage.isEmpty() ? " - " + match.stage
+        String stage = match != null && !match.stage.isEmpty() ? " - " + stageName(match.stage)
                 : match != null && match.round > 0 ? tr(" - Kolejka ", " - Round ") + match.round : "";
         if (!stage.isEmpty()) {
             // Long names ("IV liga warmińsko-mazurska - Kolejka 15") shrink and may use two
@@ -1749,6 +1800,42 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
         TextView teams = text(title, 29, color, true, x + 29, y + 68, 405, 80);
         teams.setSingleLine(false);
         teams.setMaxLines(2);
+        if (match != null) {
+            // One line when it fits; otherwise host on line 1 and guest on line 2, so a break
+            // never splits a club name ("Levante UD –" / "Club Atlético de Madrid").
+            android.text.TextPaint paint = new android.text.TextPaint(teams.getPaint());
+            String homeLine = shortName(match.home) + " –", awayLine = shortName(match.away);
+            int size = 29;
+            paint.setTextSize(px(size));
+            if (paint.measureText(title) > px(405)) {
+                // Too long for one line: host in the left column, guest in the right one, so
+                // each name wraps only within its own column.
+                teams.setText("");
+                String homeName = shortName(match.home), awayName = shortName(match.away);
+                int column = 186;
+                while (size > 20 && (longestWord(paint, homeName) > px(column)
+                        || longestWord(paint, awayName) > px(column)
+                        || lines(paint, homeName, px(column)) > 2 || lines(paint, awayName, px(column)) > 2))
+                    paint.setTextSize(px(--size));
+                // The host column is only as wide as its longest line, so the dash sits right after it.
+                int homeWidth = Math.min(column, Math.round(widestLine(paint, homeName, px(column)) / scale) + 4);
+                int dashX = x + 29 + homeWidth + 4, awayX = dashX + 36;
+                int awayWidth = x + 29 + 405 - awayX;
+                TextView homeView = text(homeName, size, color, true, x + 29, y + 68, homeWidth, 80);
+                TextView dash = text("–", size, color, true, dashX, y + 68, 30, 80); // centred in a 30-unit slot
+                TextView awayView = text(awayName, size, color, true, awayX, y + 68, awayWidth, 80);
+                for (TextView v : new TextView[]{homeView, dash, awayView}) {
+                    v.setSingleLine(false);
+                    v.setMaxLines(2);
+                    v.setGravity(Gravity.TOP);
+                }
+                dash.setGravity(Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+                if (Math.max(lines(paint, homeName, px(column)), lines(paint, awayName, px(column))) == 2) {
+                    // Two-line names: the dash sits between the two lines, not on the first one.
+                    dash.setPadding(0, Math.round(paint.getFontSpacing() * 0.36f), 0, 0);
+                }
+            }
+        }
         teams.setGravity(Gravity.TOP);
         if (match == null) {
             text(feed.loading ? tr("Pobieranie terminarza…", "Loading fixtures…")
@@ -1811,6 +1898,75 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
         while (shortened.length() > 24 && shortened.lastIndexOf(' ') > 0)
             shortened = shortened.substring(0, shortened.lastIndexOf(' '));
         return shortened;
+    }
+
+    private static float longestWord(android.text.TextPaint paint, String text) {
+        float widest = 0;
+        for (String word : text.split(" ")) widest = Math.max(widest, paint.measureText(word));
+        return widest;
+    }
+
+    /** Width of the widest line when wrapping at spaces within the given width. */
+    private static float widestLine(android.text.TextPaint paint, String text, int width) {
+        float widest = 0;
+        String line = "";
+        for (String word : text.split(" ")) {
+            String candidate = line.isEmpty() ? word : line + " " + word;
+            if (line.isEmpty() || paint.measureText(candidate) <= width) line = candidate;
+            else { widest = Math.max(widest, paint.measureText(line)); line = word; }
+        }
+        return Math.max(widest, paint.measureText(line));
+    }
+
+    /** Lines needed when wrapping at spaces within the given width. */
+    private static int lines(android.text.TextPaint paint, String text, int width) {
+        int count = 1;
+        String line = "";
+        for (String word : text.split(" ")) {
+            String candidate = line.isEmpty() ? word : line + " " + word;
+            if (line.isEmpty() || paint.measureText(candidate) <= width) line = candidate;
+            else { count++; line = word; }
+        }
+        return count;
+    }
+
+    /** kalendarzeligowe.pl names are Polish; the English interface shows the usual English names. */
+    private String competitionName(String name) {
+        if (!english) return name;
+        switch (name) {
+            case "Liga Mistrzów": return "Champions League";
+            case "Liga Europy": return "Europa League";
+            case "Liga Konferencji": return "Conference League";
+            case "Puchar Polski": return "Polish Cup";
+            case "Superpuchar": return "Super Cup";
+            case "Reprezentacja — Liga Narodów": return "Poland — Nations League";
+            default: return name;
+        }
+    }
+
+    private String stageName(String stage) {
+        if (!english) return stage;
+        String s = stage.toLowerCase(PL).trim();
+        if (s.equals("faza ligowa")) return "League phase";
+        if (s.startsWith("1/64")) return "Round of 128";
+        if (s.startsWith("1/32")) return "Round of 64";
+        if (s.startsWith("1/16")) return "Round of 32";
+        if (s.startsWith("1/8")) return "Round of 16";
+        if (s.startsWith("ćwierćfina")) return "Quarter-final";
+        if (s.startsWith("półfina")) return "Semi-final";
+        if (s.startsWith("finał") || s.equals("final")) return "Final";
+        if (s.startsWith("baraż") || s.startsWith("play-off")) return "Play-off";
+        if (s.startsWith("runda wstępna")) return "Preliminary round";
+        // "II runda eliminacyjna" -> "Qualifying round 2", "I runda" -> "Round 1".
+        java.util.regex.Matcher r = java.util.regex.Pattern
+                .compile("^(iv|iii|ii|i|v|\\d+)\\.? runda( eliminacyjna)?$").matcher(s);
+        if (r.find()) {
+            String n = r.group(1);
+            int number = n.matches("\\d+") ? Integer.parseInt(n)
+                    : java.util.Arrays.asList("i", "ii", "iii", "iv", "v").indexOf(n) + 1;
+            return (r.group(2) != null ? "Qualifying round " : "Round ") + number;
+        }
+        return stage;
     }
 
     /** "Sobota, 7 listopada\nza 12 dni" (English: "Saturday, 7 November\nin 12 days"). */

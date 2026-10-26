@@ -22,7 +22,7 @@ import java.util.regex.Pattern;
 /** Current leagues and teams from the same public catalogue used by kalendarzeligowe.pl. */
 final class LeagueCatalogClient {
     // 4: cached matches also keep crest versions (crestVer).
-    static final int CACHE_FORMAT = 4;
+    static final int CACHE_FORMAT = 5; // 5: date-only matches stored at midday UTC
     private static final String ROOT = "https://kalendarzeligowe.pl/api/";
     private static final List<String> SLUGS = CalendarScope.LEAGUES;
     private static final String[] CATEGORIES = {"EKSTRAKLASA", "FIRST_LEAGUE", "SECOND_LEAGUE",
@@ -119,10 +119,18 @@ final class LeagueCatalogClient {
 
     /** The site's ICS feed omits fixtures whose kickoff time is still provisional. */
     static List<IcsMatchParser.Match> teamMatches(String calendarUrl, long fromMillis) throws Exception {
+        if (!CalendarScope.accepts(calendarUrl)) throw new IllegalArgumentException("Unknown team calendar URL");
+        if (CalendarScope.isForeign(calendarUrl))
+            return OpenFootballClient.teamMatches(CalendarScope.foreignLeague(calendarUrl),
+                    CalendarScope.foreignTeam(calendarUrl), fromMillis);
         Matcher id = Pattern.compile("-(\\d+)/calendar\\.ics(?:\\?.*)?$").matcher(calendarUrl);
-        if (!CalendarScope.accepts(calendarUrl) || !id.find())
-            throw new IllegalArgumentException("Unknown team calendar URL");
-        int teamId = Integer.parseInt(id.group(1));
+        if (!id.find()) throw new IllegalArgumentException("Unknown team calendar URL");
+        return apiMatches(Integer.parseInt(id.group(1)), fromMillis, null);
+    }
+
+    /** Team matches from the API; with {@code categories} only those competitions (e.g. European cups). */
+    static List<IcsMatchParser.Match> apiMatches(int teamId, long fromMillis,
+                                                 java.util.Set<String> categories) throws Exception {
         List<IcsMatchParser.Match> matches = new ArrayList<>();
         for (int page = 1; page <= 10; page++) {
             JSONObject response = readObject("matches?teamId=" + teamId + "&pageSize=100&page=" + page);
@@ -142,10 +150,12 @@ final class LeagueCatalogClient {
                 boolean hasTime = !item.optBoolean("isDateTbd", false);
                 long startsAt = hasTime ? kickoff.toEpochMilli()
                         : kickoff.atZone(ZoneId.of("Europe/Warsaw")).toLocalDate()
-                                .atStartOfDay(ZoneId.of("Europe/Warsaw")).toInstant().toEpochMilli();
+                                .atTime(12, 0).atZone(ZoneId.of("UTC")).toInstant().toEpochMilli(); // date only: midday UTC keeps the same date in any European/American time zone
                 if (startsAt < fromMillis) continue;
                 JSONObject round = item.optJSONObject("round");
                 JSONObject competition = item.optJSONObject("competition");
+                if (categories != null && (competition == null
+                        || !categories.contains(competition.optString("category")))) continue;
                 MatchCompetition metadata = MatchCompetition.from(
                         competition == null ? "" : competition.optString("name", ""),
                         competition == null ? "" : competition.optString("category", ""),
@@ -161,6 +171,44 @@ final class LeagueCatalogClient {
         }
         matches.sort(Comparator.comparingLong(match -> match.startsAt));
         return matches;
+    }
+
+    /** Teams in this season's Champions League, Europa League and Conference League. */
+    static List<JSONObject> europeanTeams() throws Exception {
+        JSONArray seasons = readArray("seasons");
+        String season = "";
+        for (int i = 0; i < seasons.length(); i++)
+            if (seasons.getJSONObject(i).optBoolean("isCurrent")) season = seasons.getJSONObject(i).getString("name");
+        JSONArray competitions = readArray("competitions?season=" + URLEncoder.encode(season, "UTF-8"));
+        HashMap<Integer, JSONObject> teams = new HashMap<>();
+        for (int j = 0; j < competitions.length(); j++) {
+            JSONObject c = competitions.getJSONObject(j);
+            String category = c.optString("category");
+            if (!category.equals("CHAMPIONS_LEAGUE") && !category.equals("EUROPA_LEAGUE")
+                    && !category.equals("CONFERENCE_LEAGUE")) continue;
+            JSONObject standings = null;
+            try { standings = readObject("competitions/" + c.getInt("id") + "/standings"); } catch (Exception ignored) { }
+            JSONArray rows = standings == null ? null : standings.optJSONArray("standings");
+            if (rows != null) for (int i = 0; i < rows.length(); i++) {
+                JSONObject team = rows.getJSONObject(i).optJSONObject("team");
+                if (team != null && team.optInt("id") > 0) teams.put(team.optInt("id"), team);
+            }
+            if (rows != null && rows.length() > 0) continue;
+            // Cups often have no table: collect the teams from the cup's matches instead.
+            for (int page = 1; page <= 6; page++) {
+                JSONObject matches = readObject("matches?competitionId=" + c.getInt("id")
+                        + "&season=" + URLEncoder.encode(season, "UTF-8") + "&pageSize=100&page=" + page);
+                JSONArray data = matches.optJSONArray("data");
+                if (data == null || data.length() == 0) break;
+                for (int i = 0; i < data.length(); i++) for (String side : new String[]{"home", "away"}) {
+                    JSONObject team = data.getJSONObject(i).optJSONObject(side);
+                    if (team != null && team.optInt("id") > 0) teams.put(team.optInt("id"), team);
+                }
+                JSONObject meta = matches.optJSONObject("meta");
+                if (meta == null || page >= meta.optInt("pageCount", page)) break;
+            }
+        }
+        return new ArrayList<>(teams.values());
     }
 
     private static void add(HashMap<Integer, Team> teams, JSONObject item) {

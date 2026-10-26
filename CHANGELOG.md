@@ -5,6 +5,12 @@ Every release gets an entry here in Polish and English. Newest first.
 
 ## Niewydane / Unreleased
 
+- **(Test, przed wydaniem do decyzji)** Herby klubów zagranicznych z football-logos.cc, gdy kalendarzeligowe.pl nie ma herbu; dopasowanie po nazwie (`CrestNameMatcher`). Przed wydaniem: zgoda autora i podziękowania (x.com/Leo4815162342, link do football-logos.cc).
+- **(Test, decision before release)** Foreign club crests from football-logos.cc when kalendarzeligowe.pl has none; matched by name (`CrestNameMatcher`). Before release: the author's consent and credit (x.com/Leo4815162342, link to football-logos.cc).
+- Nazwy klubów w kolumnach (gospodarz z lewej, gość z prawej), gdy mecz nie mieści się w jednej linii; godziny meczów w strefie czasowej telewizora, także dla meczów bez ustalonej godziny.
+- Club names in columns (host left, guest right) when the match does not fit on one line; kick-off times in the TV's time zone, also for date-only matches.
+- **Ligi zagraniczne:** Anglia, Francja, Hiszpania, Niemcy i Włochy (Premier League, Ligue 1, La Liga, Bundesliga, Serie A). W kreatorze najpierw kraj (Polska, potem reszta alfabetycznie), potem liga i klub. Mecze w europejskich pucharach pokazują się razem z ligowymi. Godziny w czasie polskim.
+- **Foreign leagues:** England, France, Germany, Italy and Spain (Premier League, Ligue 1, Bundesliga, Serie A, La Liga). The wizard asks for the country first (Poland, then the rest alphabetically), then the league and the club. European cup matches appear together with league matches. Times in Polish time.
 - Data meczu w dwóch liniach: „Sobota, 7 listopada”, a pod nią „za 12 dni”. W dniu meczu zamiast daty świeci zielony znaczek DZISIAJ (jak LIVE).
 - The match date has two lines: "Saturday, 7 November", then "in 12 days". On match day a green TODAY badge (like LIVE) replaces the date.
 - Nagłówek karty meczu ma zawsze dwie linie: liga, a pod nią kolejka lub etap — długie nazwy (np. IV liga warmińsko-mazurska) nie ucinają już numeru kolejki.
