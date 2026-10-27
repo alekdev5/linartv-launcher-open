@@ -2707,7 +2707,7 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
 
     private void dockTile(String brand, String pkg, int x) {
         View glow = new View(this);
-        glow.setBackground(new AppGlowDrawable());
+        glow.setBackground(new AppGlowDrawable().withRing());
         glow.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         glow.setAlpha(0f);
         place(glow, x - 24, 743, 388, 164);
@@ -3124,7 +3124,7 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
             FrameLayout wrapper = new FrameLayout(this);
             wrapper.setClipChildren(false);
             View glow = new View(this);
-            glow.setBackground(new AppGlowDrawable());
+            glow.setBackground(new AppGlowDrawable().withRing());
             glow.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
             glow.setAlpha(0f);
             FrameLayout.LayoutParams glowParams = new FrameLayout.LayoutParams(px(388), px(164));
@@ -3218,7 +3218,7 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
             FrameLayout wrapper = new FrameLayout(this);
             wrapper.setClipChildren(false);
             View glow = new View(this);
-            glow.setBackground(new AppGlowDrawable());
+            glow.setBackground(new AppGlowDrawable().withRing());
             glow.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
             glow.setAlpha(0f);
             FrameLayout.LayoutParams glowParams = new FrameLayout.LayoutParams(px(388), px(164));
@@ -3472,8 +3472,8 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
     private void setAppTileFocus(FrameLayout tile, View glow, boolean focused) {
         glow.animate().alpha(focused ? 1f : 0f).setDuration(170).start();
         tile.setElevation(focused ? px(14) : 0);
-        tile.setScaleX(focused ? 1.015f : 1f);
-        tile.setScaleY(focused ? 1.015f : 1f);
+        tile.setScaleX(focused ? 1.04f : 1f);
+        tile.setScaleY(focused ? 1.04f : 1f);
     }
 
     private final class AppGlowDrawable extends Drawable {
@@ -3481,6 +3481,9 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
         private final int radius;
         private final boolean outerOnly;
         private final int outerColor, innerColor;
+        /** Sharp two-tone ring (white + dark navy) so the selection stays visible on bright wallpapers. */
+        private boolean ring;
+        AppGlowDrawable withRing() { this.ring = true; return this; }
         AppGlowDrawable() { this(32, false); }
         AppGlowDrawable(int radius, boolean outerOnly) {
             this(radius, outerOnly, 0xBA55BAFF, 0xA57FDBFF);
@@ -3523,6 +3526,22 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
                     android.graphics.BlurMaskFilter.Blur.NORMAL));
             canvas.drawRoundRect(card, px(radius), px(radius), glow);
             glow.setMaskFilter(null);
+            if (ring) {
+                glow.setStyle(Paint.Style.STROKE);
+                // Dark outer outline: keeps the ring readable on white / light wallpapers.
+                glow.setStrokeWidth(px(4));
+                glow.setColor(0xFF08142B);
+                RectF outer = new RectF(card);
+                outer.inset(-px(10.5f), -px(10.5f));
+                canvas.drawRoundRect(outer, px(radius) + px(10.5f), px(radius) + px(10.5f), glow);
+                // Bright inner ring: keeps it readable on dark wallpapers.
+                glow.setStrokeWidth(px(6));
+                glow.setColor(0xFFFFFFFF);
+                RectF inner = new RectF(card);
+                inner.inset(-px(5.5f), -px(5.5f));
+                canvas.drawRoundRect(inner, px(radius) + px(5.5f), px(radius) + px(5.5f), glow);
+                glow.setStyle(Paint.Style.FILL);
+            }
         }
         @Override public void setAlpha(int alpha) { }
         @Override public void setColorFilter(android.graphics.ColorFilter filter) { }
