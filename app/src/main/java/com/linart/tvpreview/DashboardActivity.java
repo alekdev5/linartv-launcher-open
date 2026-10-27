@@ -75,9 +75,13 @@ public final class DashboardActivity extends Activity {
     private static final int W = 1672;
     private static final int H = 941;
     private static final int DASHBOARD_CARD_Y = 328;
+    /** Card height; 12 units taller than before so the data provider fits under the crests. */
+    private static final int CARD_H = 298;
+    /** Crest box on match cards; leaves room for the data provider line below. */
+    private static final int CREST_SIZE = 118;
     private static final int SINGLE_COLUMN_X = 1114;
     private static final int SINGLE_WEATHER_Y = 145;
-    private static final int SINGLE_MATCH_Y = 445;
+    private static final int SINGLE_MATCH_Y = 457;
     private static final Locale PL = new Locale("pl", "PL");
     private static final Locale EN = Locale.ENGLISH;
     private static final int TILE_BG = 0x80152146;
@@ -265,6 +269,7 @@ public final class DashboardActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        FixturesClient.init(this);
         // As the default home screen, keep the wake monitor running even without a reboot.
         if (BootReceiver.isDefaultHome(this)) BootReceiver.startWakeMonitor(this);
         getWindow().getDecorView().setSystemUiVisibility(
@@ -454,7 +459,9 @@ public final class DashboardActivity extends Activity {
         new Thread(() -> {
             try {
                     long from = System.currentTimeMillis() - CALENDAR_PARSE_LOOKBACK_MS;
-                    List<IcsMatchParser.Match> matches = LeagueCatalogClient.teamMatches(feed.url, from);
+                    List<IcsMatchParser.Match> matches = CalendarScope.isForeign(feed.url)
+                            ? FixturesClient.teamMatches(feed.url, feed.league, from)
+                            : LeagueCatalogClient.teamMatches(feed.url, from);
                     JSONArray rows = new JSONArray();
                     for (IcsMatchParser.Match match : matches) {
                         JSONObject row = new JSONObject();
@@ -681,7 +688,7 @@ public final class DashboardActivity extends Activity {
     }
 
     private void renderSetupCard() {
-        int x = SINGLE_COLUMN_X, y = SINGLE_MATCH_Y, w = 500, h = 286;
+        int x = SINGLE_COLUMN_X, y = SINGLE_MATCH_Y, w = 500, h = CARD_H;
         View glow = tileGlow(x, y, w, h, 34);
         colorCard(x, y, w, h);
         text(tr("Kalendarz meczów", "Match calendar"), 21, ink, false, x + 30, y + 25, 430, 38);
@@ -1431,40 +1438,42 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
     /** Country first: Poland, then foreign countries alphabetically (Top 5 leagues). */
     private void chooseLeague(int slot, CalendarFeed[] draft, TextView button,
                               Dialog setup, TextView status) {
-        List<OpenFootballClient.Country> foreign = OpenFootballClient.sortedCountries(english);
+        List<FixturesClient.Country> foreign = FixturesClient.sortedCountries(english);
         String[] countries = new String[foreign.size() + 1];
         countries[0] = tr("Polska", "Poland");
         for (int i = 0; i < foreign.size(); i++)
             countries[i + 1] = english ? foreign.get(i).nameEn : foreign.get(i).namePl;
         showChoiceDialog(tr("Wybierz kraj", "Choose a country"), countries, index -> {
             if (index == 0) { choosePolishLeague(slot, draft, button, setup, status); return; }
-            OpenFootballClient.Country country = foreign.get(index - 1);
+            FixturesClient.Country country = foreign.get(index - 1);
             showChoiceDialog(countries[index], new String[]{country.league},
                     league -> chooseForeignClub(slot, country, draft, button, setup, status));
         });
     }
 
-    private void chooseForeignClub(int slot, OpenFootballClient.Country country, CalendarFeed[] draft,
+    private void chooseForeignClub(int slot, FixturesClient.Country country, CalendarFeed[] draft,
                                    TextView button, Dialog setup, TextView status) {
         status.setText(tr("Pobieranie drużyn…", "Loading teams…"));
         new Thread(() -> {
             try {
-                List<String> teams = OpenFootballClient.teams(country.code);
+                List<FixturesClient.Team> teams = FixturesClient.teams(country.code);
                 handler.post(() -> {
                     if (!setup.isShowing()) return;
                     if (teams.isEmpty()) { status.setText(tr("Brak drużyn w tej lidze.",
                             "No teams in this league.")); return; }
                     status.setText("");
-                    showChoiceDialog(country.league, teams.toArray(new String[0]), index -> {
-                        String team = teams.get(index);
-                        String url = CalendarScope.foreignUrl(country.code, team);
+                    String[] names = new String[teams.size()];
+                    for (int i = 0; i < names.length; i++) names[i] = teams.get(i).name;
+                    showChoiceDialog(country.league, names, index -> {
+                        String team = teams.get(index).name;
+                        String url = FixturesClient.feedUrl(teams.get(index).slug);
                         int other = 1 - slot;
                         if (draft[other].configured() && draft[other].url.equals(url)) {
                             status.setText(tr("Ten klub jest już wybrany.", "This club is already selected."));
                             return;
                         }
                         draft[slot] = new CalendarFeed("club" + (slot + 1), url, team, country.league,
-                                "openfootball-" + country.code);
+                                "fixtures-" + country.code);
                         button.setText((slot + 1) + ". " + team + " · " + country.league);
                         button.requestFocusFromTouch();
                     });
@@ -1739,7 +1748,7 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
         final int y = feed == clubOneCalendar && !clubTwoCalendar.configured()
                 ? SINGLE_MATCH_Y : DASHBOARD_CARD_Y;
         final int w = 500;
-        final int h = 286;
+        final int h = CARD_H;
         long now = System.currentTimeMillis();
         List<IcsMatchParser.Match> upcoming = upcomingMatches(feed, now);
         long first = upcoming.isEmpty() ? 0 : upcoming.get(0).startsAt;
@@ -1764,6 +1773,8 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
             placeIcon.setColorFilter(color);
             placeIcon.setContentDescription(home ? tr("Mecz u siebie", "Home match")
                     : tr("Mecz na wyjeździe", "Away match"));
+            placeIcon.setBackground(shape(0x55FFFFFF, Color.TRANSPARENT, 9));
+            // Larger icon spanning the three header lines (competition, round, data provider).
             placeIcon.setBackground(shape(0x55FFFFFF, Color.TRANSPARENT, 9));
             placeIcon.setPadding(px(7), px(4), px(7), px(4));
             place(placeIcon, x + 28, y + 22, 42, 36);
@@ -1794,6 +1805,8 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
             text(competition, 20, color, false, x + (match == null ? 155 : 84), y + 22,
                     match == null ? 169 : 240, 35);
         }
+        // Data provider in the bottom-left corner, under the crests.
+        if (match != null) dataProviderLine(feed, x + 29, y + 272, color);
         refreshStamp(feed.updatedAt, x + 330, y + 19, 144);
         String title = match == null ? tr("Brak nadchodzących meczów", "No upcoming matches")
                 : shortName(match.home) + " – " + shortName(match.away);
@@ -1844,8 +1857,8 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
             return;
         }
         String crestLeague = feed.leagueSlug;
-        crestBadge(match.home, crestLeague, match.homeTeamId, x + 14, y + 145);
-        crestBadge(match.away, crestLeague, match.awayTeamId, x + 150, y + 145);
+        crestBadge(match.home, crestLeague, match.homeTeamId, x + 14, y + 147);
+        crestBadge(match.away, crestLeague, match.awayTeamId, x + 146, y + 147);
         String time = match.hasTime ? new SimpleDateFormat("HH:mm", PL).format(new Date(match.startsAt)) : "—:—";
         text(time, 61, color, true, x + 290, y + 163, 190, 75).setGravity(Gravity.CENTER);
         if (live) {
@@ -1900,6 +1913,34 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
         return shortened;
     }
 
+    /** Who provides this club's fixtures; shown on the card (required by some providers). */
+    private static String dataProvider(CalendarFeed feed) {
+        return CalendarScope.isForeign(feed.url) ? FixturesClient.PROVIDER : "kalendarzeligowe.pl";
+    }
+
+    /** Third header line: "Dane dostarcza:" and the provider's address in a softly glowing pill. */
+    private void dataProviderLine(CalendarFeed feed, int x, int y, int color) {
+        String label = tr("Dane dostarcza:", "Data provided by:");
+        String provider = dataProvider(feed);
+        // Label and pill share one row (same top and height, text centred vertically).
+        TextView caption = text(label, 13, (color & 0x00FFFFFF) | 0xC0000000, false, x, y - 2, 200, 22);
+        caption.setIncludeFontPadding(false);
+        caption.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        int captionWidth = Math.round(caption.getPaint().measureText(label) / scale) + 6;
+        TextView pill = text(provider, 13, night ? 0xFFE8F0FF : 0xFF183154, false, x + captionWidth, y - 2, 140, 22);
+        pill.setIncludeFontPadding(false);
+        pill.setGravity(Gravity.CENTER);
+        int pillWidth = Math.round(pill.getPaint().measureText(provider) / scale) + 16;
+        View glow = new View(this);
+        glow.setBackground(new AppGlowDrawable(10, false, 0x557FA6E6, 0x6699C2FF));
+        glow.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        place(glow, x + captionWidth - 6, y - 8, pillWidth + 12, 34);
+        glow.bringToFront();
+        pill.bringToFront();
+        setLeftPx(pill, px(x + captionWidth), px(pillWidth));
+        pill.setBackground(shape(night ? 0xCC1E2F55 : 0xCCE4ECF6, night ? 0xFF7FA6E6 : 0xFF6994CC, 8));
+    }
+
     private static float longestWord(android.text.TextPaint paint, String text) {
         float widest = 0;
         for (String word : text.split(" ")) widest = Math.max(widest, paint.measureText(word));
@@ -1939,6 +1980,7 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
             case "Liga Konferencji": return "Conference League";
             case "Puchar Polski": return "Polish Cup";
             case "Superpuchar": return "Super Cup";
+            case "Superpuchar UEFA": return "UEFA Super Cup";
             case "Reprezentacja — Liga Narodów": return "Poland — Nations League";
             default: return name;
         }
@@ -1988,7 +2030,7 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
     }
 
     private void crestBadge(String club, String league, int teamId, int x, int y) {
-        final int size = 128;
+        final int size = CREST_SIZE;
         Bitmap bitmap = crests.get(club, teamId);
         TextView fallback = text(clubInitials(club), 35,
                 night ? 0xFFF5F8FF : 0xFF183154, true, x + 8, y + 8, size - 16, size - 16);
@@ -2030,7 +2072,7 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
     private void setCrestBitmap(ImageView image, Bitmap bitmap) {
         Bitmap result = scaledCrests.get(bitmap);
         if (result == null || result.isRecycled()) {
-            int target = px(128);
+            int target = px(CREST_SIZE); // the bitmap is shown unscaled (CENTER), so match the box
             float ratio = Math.min(target / (float) bitmap.getWidth(), target / (float) bitmap.getHeight());
             int finalWidth = Math.max(1, Math.round(bitmap.getWidth() * ratio));
             int finalHeight = Math.max(1, Math.round(bitmap.getHeight() * ratio));
@@ -2105,7 +2147,7 @@ second.setOnClickListener(v -> chooseLeague(1, draft, second, dialog, status));
 
     private void renderWeatherCard(int x) {
         final int y = clubTwoCalendar.configured() ? DASHBOARD_CARD_Y : SINGLE_WEATHER_Y;
-        final int w = 500, h = 286;
+        final int w = 500, h = CARD_H;
         View glow = tileGlow(x, y, w, h, 34);
         colorCard(x, y, w, h);
         int weatherInk = ink;

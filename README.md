@@ -62,7 +62,7 @@ Signed releases: see [docs/RELEASING.md](docs/RELEASING.md). What changed in eac
 ### Credits
 - Inspired by and started inside [Clean Your TV](https://cleanyour.tv/) by Gathin (MIT).
 - Fixtures: [kalendarzeligowe.pl](https://kalendarzeligowe.pl) — used with the site owner's permission.
-- Foreign league fixtures (Top 5): [openfootball/football.json](https://github.com/openfootball/football.json) (CC0, public domain).
+- Foreign club fixtures (Top 5 leagues, domestic and European cups): match data by [fixtur.es](https://fixtur.es) — used under their fair-use rules; credited on every match card.
 - Weather data: [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0); city search: Open-Meteo geocoding / GeoNames (CC BY 4.0).
 - Weather icons: [Meteocons](https://github.com/basmilius/weather-icons) by Bas Milius (MIT), bundled in the app.
 - Weather Icons font by Erik Flowers (SIL OFL 1.1) — used for the °C / °F sign.
@@ -113,7 +113,7 @@ Podpisane wydania: [docs/RELEASING.md](docs/RELEASING.md). Zmiany w kolejnych we
 ### Podziękowania
 - Projekt powstał na bazie i z inspiracji [Clean Your TV](https://cleanyour.tv/) (Gathin, MIT).
 - Terminarze: [kalendarzeligowe.pl](https://kalendarzeligowe.pl) — za zgodą właściciela serwisu.
-- Terminarze lig zagranicznych (Top 5): [openfootball/football.json](https://github.com/openfootball/football.json) (CC0, domena publiczna).
+- Terminarze klubów zagranicznych (Top 5 lig, krajowe i europejskie puchary): dane meczowe [fixtur.es](https://fixtur.es) — na zasadach „fair use” fixtur.es; podpis na każdej karcie meczu.
 - Dane pogodowe: [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0); wyszukiwanie miast: geokodowanie Open-Meteo / GeoNames (CC BY 4.0).
 - Ikony pogody: [Meteocons](https://github.com/basmilius/weather-icons), Bas Milius (MIT), wbudowane w aplikację.
 - Font Weather Icons: Erik Flowers (SIL OFL 1.1) — znak °C / °F.

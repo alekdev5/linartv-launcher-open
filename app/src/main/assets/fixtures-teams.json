@@ -1,0 +1,396 @@
+{
+ "en.1": [
+  {
+   "name": "AFC Bournemouth",
+   "slug": "afc-bournemouth"
+  },
+  {
+   "name": "Arsenal",
+   "slug": "arsenal"
+  },
+  {
+   "name": "Aston Villa",
+   "slug": "aston-villa"
+  },
+  {
+   "name": "Brentford FC",
+   "slug": "brentford-fc"
+  },
+  {
+   "name": "Brighton & Hove Albion FC",
+   "slug": "brighton-hove-albion-fc"
+  },
+  {
+   "name": "Chelsea",
+   "slug": "chelsea"
+  },
+  {
+   "name": "Coventry City",
+   "slug": "coventry-city"
+  },
+  {
+   "name": "Crystal Palace",
+   "slug": "crystal-palace"
+  },
+  {
+   "name": "Everton",
+   "slug": "everton"
+  },
+  {
+   "name": "Fulham",
+   "slug": "fulham"
+  },
+  {
+   "name": "Hull City",
+   "slug": "hull-city"
+  },
+  {
+   "name": "Ipswich Town",
+   "slug": "ipswich-town"
+  },
+  {
+   "name": "Leeds United",
+   "slug": "leeds-united"
+  },
+  {
+   "name": "Liverpool",
+   "slug": "liverpool"
+  },
+  {
+   "name": "Manchester City",
+   "slug": "manchester-city"
+  },
+  {
+   "name": "Manchester United",
+   "slug": "manchester-united"
+  },
+  {
+   "name": "Newcastle United",
+   "slug": "newcastle-united"
+  },
+  {
+   "name": "Nottingham Forest",
+   "slug": "nottingham-forest"
+  },
+  {
+   "name": "Sunderland",
+   "slug": "sunderland"
+  },
+  {
+   "name": "Tottenham Hotspur",
+   "slug": "tottenham-hotspur"
+  }
+ ],
+ "es.1": [
+  {
+   "name": "Athletic de Bilbao",
+   "slug": "athletic-bilbao"
+  },
+  {
+   "name": "Atlético Madrid",
+   "slug": "atletico-madrid"
+  },
+  {
+   "name": "CA Osasuna",
+   "slug": "ca-osasuna"
+  },
+  {
+   "name": "Celta de Vigo",
+   "slug": "celta-de-vigo"
+  },
+  {
+   "name": "Deportivo Alavés",
+   "slug": "deportivo-alaves"
+  },
+  {
+   "name": "Elche CF",
+   "slug": "elche-cf"
+  },
+  {
+   "name": "Espanyol",
+   "slug": "espanyol"
+  },
+  {
+   "name": "FC Barcelona",
+   "slug": "fc-barcelona"
+  },
+  {
+   "name": "Getafe",
+   "slug": "getafe"
+  },
+  {
+   "name": "Levante",
+   "slug": "levante"
+  },
+  {
+   "name": "Malaga",
+   "slug": "malaga"
+  },
+  {
+   "name": "Racing de Santander",
+   "slug": "real-racing-santander"
+  },
+  {
+   "name": "Rayo Vallecano",
+   "slug": "rayo-vallecano"
+  },
+  {
+   "name": "RC Deportivo",
+   "slug": "deportivo-la-coruna"
+  },
+  {
+   "name": "Real Betis",
+   "slug": "real-betis-sevilla"
+  },
+  {
+   "name": "Real Madrid",
+   "slug": "real-madrid"
+  },
+  {
+   "name": "Real Sociedad",
+   "slug": "real-sociedad"
+  },
+  {
+   "name": "Sevilla FC",
+   "slug": "sevilla"
+  },
+  {
+   "name": "Valencia",
+   "slug": "valencia"
+  },
+  {
+   "name": "Villarreal",
+   "slug": "villarreal"
+  }
+ ],
+ "de.1": [
+  {
+   "name": "1. FC Union Berlin",
+   "slug": "fc-union-berlin"
+  },
+  {
+   "name": "1.FC Köln",
+   "slug": "1fc-koln"
+  },
+  {
+   "name": "1899 Hoffenheim",
+   "slug": "1899-hoffenheim"
+  },
+  {
+   "name": "Bayer Leverkusen",
+   "slug": "bayer-leverkusen"
+  },
+  {
+   "name": "Bayern München",
+   "slug": "bayern-munchen"
+  },
+  {
+   "name": "Borussia Dortmund",
+   "slug": "borussia-dortmund"
+  },
+  {
+   "name": "Borussia Mönchengladbach",
+   "slug": "borussia-monchengladbach"
+  },
+  {
+   "name": "Eintracht Frankfurt",
+   "slug": "eintracht-frankfurt"
+  },
+  {
+   "name": "FC Augsburg",
+   "slug": "fc-augsburg"
+  },
+  {
+   "name": "FC Schalke 04",
+   "slug": "fc-schalke-04"
+  },
+  {
+   "name": "FSV Mainz 05",
+   "slug": "fsv-mainz-05"
+  },
+  {
+   "name": "Hamburger SV",
+   "slug": "hamburger-sv"
+  },
+  {
+   "name": "RB Leipzig",
+   "slug": "rb-leipzig"
+  },
+  {
+   "name": "SC Freiburg",
+   "slug": "sc-freiburg"
+  },
+  {
+   "name": "SC Paderborn 07",
+   "slug": "sc-paderborn-07"
+  },
+  {
+   "name": "SV Elversberg",
+   "slug": "sv-elversberg"
+  },
+  {
+   "name": "VfB Stuttgart",
+   "slug": "vfb-stuttgart"
+  },
+  {
+   "name": "Werder Bremen",
+   "slug": "werder-bremen"
+  }
+ ],
+ "it.1": [
+  {
+   "name": "AC Milan",
+   "slug": "ac-milan"
+  },
+  {
+   "name": "AC Monza",
+   "slug": "ss-monza"
+  },
+  {
+   "name": "AS Roma",
+   "slug": "as-roma"
+  },
+  {
+   "name": "Atalanta",
+   "slug": "atalanta"
+  },
+  {
+   "name": "Bologna",
+   "slug": "bologna"
+  },
+  {
+   "name": "Cagliari",
+   "slug": "cagliari"
+  },
+  {
+   "name": "Como",
+   "slug": "como"
+  },
+  {
+   "name": "FC Genoa",
+   "slug": "fc-genoa"
+  },
+  {
+   "name": "Fiorentina",
+   "slug": "fiorentina"
+  },
+  {
+   "name": "Frosinone",
+   "slug": "frosinone"
+  },
+  {
+   "name": "Inter",
+   "slug": "inter"
+  },
+  {
+   "name": "Juventus",
+   "slug": "juventus"
+  },
+  {
+   "name": "Lecce",
+   "slug": "lecce"
+  },
+  {
+   "name": "Napoli",
+   "slug": "napoli"
+  },
+  {
+   "name": "Parma",
+   "slug": "parma"
+  },
+  {
+   "name": "S.S. Lazio",
+   "slug": "lazio-roma"
+  },
+  {
+   "name": "Torino",
+   "slug": "torino"
+  },
+  {
+   "name": "Udinese",
+   "slug": "udinese"
+  },
+  {
+   "name": "US Sassuolo",
+   "slug": "us-sassuolo-calcio"
+  },
+  {
+   "name": "Venezia",
+   "slug": "venezia"
+  }
+ ],
+ "fr.1": [
+  {
+   "name": "Angers SCO",
+   "slug": "angers-sco"
+  },
+  {
+   "name": "AS Monaco",
+   "slug": "as-monaco"
+  },
+  {
+   "name": "Auxerre",
+   "slug": "auxerre"
+  },
+  {
+   "name": "Estac Troyes",
+   "slug": "estac-troyes"
+  },
+  {
+   "name": "Le Havre",
+   "slug": "le-havre"
+  },
+  {
+   "name": "Le Mans",
+   "slug": "le-mans"
+  },
+  {
+   "name": "Lens",
+   "slug": "lens"
+  },
+  {
+   "name": "Lille",
+   "slug": "lille"
+  },
+  {
+   "name": "Lorient",
+   "slug": "lorient"
+  },
+  {
+   "name": "OGC Nice",
+   "slug": "ogc-nice"
+  },
+  {
+   "name": "Olympique Lyonnais",
+   "slug": "olympique-lyon"
+  },
+  {
+   "name": "Olympique Marseille",
+   "slug": "olympique-marseille"
+  },
+  {
+   "name": "Paris FC",
+   "slug": "paris-fc"
+  },
+  {
+   "name": "Paris Saint-Germain",
+   "slug": "paris-saint-germain"
+  },
+  {
+   "name": "RC Strasbourg",
+   "slug": "rc-strasbourg"
+  },
+  {
+   "name": "Stade Brestois 29",
+   "slug": "stade-brestois-29"
+  },
+  {
+   "name": "Stade Rennais",
+   "slug": "stade-rennes"
+  },
+  {
+   "name": "Toulouse",
+   "slug": "toulouse"
+  }
+ ]
+}

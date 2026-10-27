@@ -119,10 +119,8 @@ final class LeagueCatalogClient {
 
     /** The site's ICS feed omits fixtures whose kickoff time is still provisional. */
     static List<IcsMatchParser.Match> teamMatches(String calendarUrl, long fromMillis) throws Exception {
-        if (!CalendarScope.accepts(calendarUrl)) throw new IllegalArgumentException("Unknown team calendar URL");
-        if (CalendarScope.isForeign(calendarUrl))
-            return OpenFootballClient.teamMatches(CalendarScope.foreignLeague(calendarUrl),
-                    CalendarScope.foreignTeam(calendarUrl), fromMillis);
+        if (!CalendarScope.accepts(calendarUrl) || CalendarScope.isForeign(calendarUrl))
+            throw new IllegalArgumentException("Unknown team calendar URL");
         Matcher id = Pattern.compile("-(\\d+)/calendar\\.ics(?:\\?.*)?$").matcher(calendarUrl);
         if (!id.find()) throw new IllegalArgumentException("Unknown team calendar URL");
         return apiMatches(Integer.parseInt(id.group(1)), fromMillis, null);

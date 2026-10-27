@@ -147,15 +147,15 @@ final class CrestRepository {
         }
     }
     /**
-     * TEST ONLY: foreign clubs' crests from football-logos.cc (see OpenFootballClient.logoUrl).
+     * TEST ONLY: foreign clubs' crests from football-logos.cc (see FixturesClient.logoUrl).
      * The address contains a content hash, so a cached file never needs refreshing.
      */
     private boolean loadForeignLogo(Entry e) throws Exception {
         String key = "logo_url_" + CrestNameIndex.normalize(e.name);
         String url = prefs.getString(key, null);
         if (url == null) {
-            OpenFootballClient.loadLogoPages();
-            url = OpenFootballClient.logoUrl(e.name);
+            FixturesClient.loadLogoPages();
+            url = FixturesClient.logoUrl(e.name);
         }
         if (url == null) return false;
         File dir = new File(context.getFilesDir(), "crests-foreign");

@@ -15,21 +15,20 @@ public final class CalendarScopeCheck {
                 throw new AssertionError("Missing IV liga group: " + league);
             checked++;
         }
-        for (String foreign : new String[]{"openfootball:en.1/Manchester City FC", "openfootball:es.1/Club Atlético de Madrid"}) {
+        for (String foreign : new String[]{"https://ics.fixtur.es/v2/arsenal.ics",
+                "https://ics.fixtur.es/v2/brighton-hove-albion-fc.ics", "https://ics.fixtur.es/v2/1-fc-koln.ics"}) {
             if (!CalendarScope.accepts(foreign) || !CalendarScope.isForeign(foreign))
                 throw new AssertionError("Missing foreign club: " + foreign);
             checked++;
         }
-        if (!"en.1".equals(CalendarScope.foreignLeague("openfootball:en.1/Arsenal FC"))
-                || !"Arsenal FC".equals(CalendarScope.foreignTeam("openfootball:en.1/Arsenal FC")))
-            throw new AssertionError("Foreign URL parts");
-        checked++;
         String[] rejected = {
-                "openfootball:xx.1/Arsenal FC",
-                "openfootball:en.1/",
-                "openfootball:en.1/a/b",
-                "openfootball:/Arsenal FC",
-                "https://ics.fixtur.es/v2/arsenal.ics",
+                "openfootball:en.1/Arsenal FC",
+                "http://ics.fixtur.es/v2/arsenal.ics",
+                "https://ics.fixtur.es/v2/arsenal.ics?x=1",
+                "https://ics.fixtur.es/v2/../arsenal.ics",
+                "https://ics.fixtur.es/v1/arsenal.ics",
+                "https://ics.fixtur.es.evil.example/v2/arsenal.ics",
+                "https://ics.fixtur.es/v2/Arsenal.ics",
                 "https://kalendarzeligowe.pl/4-liga/team-1/calendar.ics",
                 "https://kalendarzeligowe.pl/4-liga-/team-1/calendar.ics",
                 "https://kalendarzeligowe.pl/4-liga-a-b-c/team-1/calendar.ics",

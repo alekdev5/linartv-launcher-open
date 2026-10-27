@@ -11,7 +11,7 @@ Aktualny zakres Open: wyłącznie kalendarzeligowe.pl — Ekstraklasa, I liga, I
 - [x] Galeria tapet, wysyłanie zdjęć z telefonu (kod z limitem prób), wygaszacz.
 - [x] Herby wszystkich klubów pobierane z kalendarzeligowe.pl z kontrolą wersji; bez herbów w APK (1.0.1).
 - [x] IV liga — 16 grup wojewódzkich (1.0.1).
-- [x] Ligi zagraniczne Top 5 z openfootball (CC0) + europejskie puchary z kalendarzeligowe.pl (niewydane).
+- [x] Kluby zagraniczne Top 5 z fixtur.es (za zgodą, z podpisem źródła) — liga, krajowe i europejskie puchary (niewydane).
 - [x] Dock: wybór aplikacji, zamiana, przesuwanie pilotem i usuwanie (przytrzymanie OK na kafelku).
 - [x] Podpisane APK i instalacja przez Downloader (wydanie 1.0.0, kod `1241090`).
 - [ ] Test na kilku urządzeniach Android TV / Google TV.
@@ -53,7 +53,7 @@ Current Open scope: kalendarzeligowe.pl only — Ekstraklasa, I liga, II liga, t
 - [x] Wallpaper gallery, phone photo upload (code with attempt limit), screensaver.
 - [x] All crests fetched from kalendarzeligowe.pl with version checks; no crests bundled in the APK (1.0.1).
 - [x] IV liga — all 16 regional groups (1.0.1).
-- [x] Top 5 foreign leagues from openfootball (CC0) + European cups from kalendarzeligowe.pl (unreleased).
+- [x] Top 5 foreign clubs from fixtur.es (with permission and credit) — league, domestic and European cups (unreleased).
 
 - [x] Dock: choose apps, replace, move with the remote and remove (hold OK on a tile).
 - [x] Signed APK and Downloader installation (release 1.0.0, code `1241090`).
